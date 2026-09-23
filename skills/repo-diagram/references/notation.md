@@ -260,6 +260,60 @@ Element format at every level: **name**, `[type: technology]`, one-line
 responsibility. The responsibility line is what makes C4 useful — without it you have
 boxes and lines.
 
+### Polished high-level architecture profile
+
+For generic high-level architecture, keep the evidence-backed C4-style nodes but use
+the `polished-overview` presentation contract in
+`high-level-architecture-style.md`.
+
+A minimal styling skeleton:
+
+```mermaid
+flowchart TB
+  classDef clients fill:#EAF3FF,stroke:#2F80ED,color:#172033,stroke-width:1.5px
+  classDef ingress fill:#EAF3FF,stroke:#2F80ED,color:#172033,stroke-width:1.5px
+  classDef api fill:#F5F0FF,stroke:#8B5CF6,color:#172033,stroke-width:1.5px
+  classDef realtime fill:#FFF1F2,stroke:#F87171,color:#172033,stroke-width:1.5px
+  classDef messaging fill:#FFF7E6,stroke:#F59E0B,color:#172033,stroke-width:1.5px
+  classDef processing fill:#EFF6FF,stroke:#3B82F6,color:#172033,stroke-width:1.5px
+  classDef observability fill:#ECFDF9,stroke:#14B8A6,color:#172033,stroke-width:1.5px
+  classDef data fill:#F8FAFC,stroke:#64748B,color:#172033,stroke-width:1.5px
+  classDef external fill:#FFF5F5,stroke:#EF4444,color:#172033,stroke-width:1.5px
+
+  clients_node["<b>Clients</b><br/>mobile · dashboard"]:::clients
+
+  subgraph runtime["Backend · runtime boundary"]
+    ingress_node["<b>nginx</b><br/>ingress"]:::ingress
+    api_node["<b>api-gateway</b><br/>REST API + RMQ clients"]:::api
+
+    subgraph realtime_group["Realtime communication"]
+      conversation["conversation-service"]:::realtime
+      call["call-service"]:::realtime
+      notification["notification-service"]:::realtime
+    end
+
+    broker{{"<b>rabbitmq</b><br/>AMQP broker"}}:::messaging
+  end
+
+  data_node[("<b>Service data layer</b>")]:::data
+  external_node(["<b>External integrations</b>"]):::external
+
+  clients_node -->|"HTTPS / WSS"| ingress_node
+  ingress_node -->|"REST"| api_node
+  ingress_node -->|"Socket.IO"| conversation
+  ingress_node -->|"Call Socket.IO"| call
+  api_node -.->|"RMQ"| broker
+  call -.->|"call events"| broker
+  notification -->|"push"| external_node
+  conversation -->|"persists"| data_node
+```
+
+Important: `realtime_group` is presentation-only. No edge terminates on it; edges
+terminate on `conversation`, `call` and `notification`.
+
+Use `<br/>`, never `\n`. Keep labels short enough that peer nodes stay visually
+balanced.
+
 ## Use case template
 
 Mermaid has no native use-case notation. Draw it as a flowchart, actors left, system

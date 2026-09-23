@@ -182,6 +182,24 @@ A cache, queue, auth service, load balancer, database, or relationship does not 
 on the canvas merely because it would make architectural sense. It needs evidence in
 the repository.
 
+### Polished high-level architecture
+
+Generic requests such as "draw the backend architecture", "high-level architecture"
+and "system overview" also use a `polished-overview` presentation profile.
+
+That profile adds a second quality gate without weakening traceability:
+
+- evidence still controls every real node and edge;
+- presentation groups may only contain evidenced nodes and never receive edges;
+- clients → ingress → core services → messaging/support → data/observability is the
+  default visual hierarchy when the repo supports those lanes;
+- semantic pastel roles, concise labels and a compact legend keep the diagram
+  presentation-ready;
+- the reviewer treats ugly/unbalanced high-level renders as Blocking `VISUAL`
+  findings and requires another render pass.
+
+See `skills/repo-diagram/references/high-level-architecture-style.md`.
+
 ---
 
 ## Cross-host behavior
@@ -197,6 +215,7 @@ The repository keeps one source of truth for the workflow.
 - `references/extraction.md`
 - `references/notation.md`
 - `references/layout-quality.md`
+- `references/high-level-architecture-style.md`
 - `references/repo-scout-procedure.md`
 - `references/diagram-reviewer-procedure.md`
 - `assets/spec.template.yaml`

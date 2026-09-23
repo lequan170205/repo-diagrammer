@@ -1,5 +1,5 @@
 # Diagram spec — fill this in from the code BEFORE writing any Mermaid.
-# Anything without `evidence` belongs in `gaps`, not in the diagram.
+# Architectural nodes/edges without evidence belong in gaps, not in the diagram.
 # Save the filled version next to the delivered diagram as <slug>.spec.yaml.
 
 question: ""            # the single question this diagram answers
@@ -13,34 +13,59 @@ extracted_with: []      # commands run, e.g. "pyreverse -o mmd -k -p Orders src/
 nodes:
   - id: ""              # simple id: letters, digits, underscore
     label: ""           # exact code identifier where possible
+    display_label: ""   # optional short presentation label; exact identifier must remain visible
     kind: ""            # person | actor | external | container | component | class |
                         # table | datastore | queue | job | usecase
     tech: ""            # optional: language/framework/engine
-    responsibility: ""  # one line — required for C4 levels
-    evidence: ""        # path:line | path | tool:<command>
+    responsibility: ""  # one short line — required for C4 levels
+    semantic_role: ""   # optional presentation role: clients | ingress | api | realtime |
+                        # messaging | processing | domain | observability | data | external
+    evidence: ""        # path:line | path | tool:<command>; may be a list when needed
 
 edges:
   - from: ""
     to: ""
-    label: ""           # intent, e.g. "createOrder(dto)" / "publishes OrderCreated"
-    protocol: ""        # HTTPS/JSON | SQL | Kafka | gRPC | in-process | ...
+    label: ""           # concise intent, e.g. "creates order" / "publishes OrderCreated"
+    protocol: ""        # HTTPS/JSON | SQL | RabbitMQ | gRPC | in-process | ...
     sync: true          # false for queue/event/worker/goroutine/fire-and-forget
     crosses_network: false
     evidence: ""
 
-boundaries:             # subgraph groupings — only real boundaries
+boundaries:             # architectural boundaries only — these make a real claim
   - name: ""
     contains: []
     kind: ""            # network | process | trust | bounded-context
     evidence: ""
 
+presentation:
+  profile: ""           # polished-overview | technical | default
+  title: ""
+  subtitle: ""
+  primary_path: []      # ordered real node ids that should visually read as the main story
+  groups:               # presentation-only grouping; NEVER a dependency target
+    - id: ""
+      label: ""
+      contains: []      # real evidenced node ids
+      semantic_role: "" # role used only for visual treatment
+      basis: []         # member node ids that justify the grouping label
+  legend:
+    show: false
+    node_roles: []      # e.g. ["messaging", "data", "external"]
+    edge_semantics: []  # e.g. ["sync", "async", "media", "webhook"]
+
 layout:
   direction: ""         # LR | TB
-  declaration_order: [] # node ids in reading order: actors → components → stores
-  crossing_target: 0    # max acceptable edge crossings
+  declaration_order: [] # real node ids in reading order
+  rows: []              # optional visual row plan, e.g. [[clients], [nginx], [api, realtime]]
+  sidecars:
+    left: []
+    right: []
+    bottom: []
+  crossing_target: 0    # max acceptable avoidable edge crossings
+  aspect_target: ""     # optional, e.g. "landscape 1.3-1.9"
 
 gaps:
   - ""                  # assumed, unresolved, dynamically dispatched, or inferred
 
-findings:               # optional: what a tech lead would flag
+findings:
   - ""
