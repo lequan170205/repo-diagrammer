@@ -1,27 +1,45 @@
 # Architecture profile
 
+Sources:
+- C4 Model official notation/checklist.
+- ISO/IEC/IEEE 42010:2022 when architecture-description alignment is requested.
+- Simon Brown and Bass/Clements/Kazman as informative practice references.
+
 ## Semantic contract
-- One C4 abstraction level per static view.
-- Context: people + software systems; no low-level technology noise.
-- Container: separately running applications/data stores + direct external systems.
-- Component: one container's components + immediate collaborators.
+
+One C4 abstraction level per static view.
+
+- Landscape: software systems/people across an enterprise/ecosystem scope.
+- Context: system of interest, people, and external software systems.
+- Container: separately running applications/data stores and direct externals.
+- Component: components inside one container plus immediate collaborators.
 - Dynamic: one runtime story using elements from the static model.
-- Every relationship is unidirectional and labelled with intent.
-- Inter-process relations include protocol/technology when evidenced.
-- Real boundaries require evidence.
+
+Every relationship is unidirectional and labelled with intent. Inter-process
+relationships show protocol/technology when evidenced. Real boundaries require evidence.
+
+## C4 textbook-strict
+
+Requires target c4-model, title, key/legend, explicit element type, short
+responsibility for every element, technology for containers/components/datastores/
+queues, labelled relationships, and protocols on network hops.
+
+## ISO 42010 alignment subset
+
+When target iso-iec-ieee-42010-2022 is selected, record entity of interest,
+stakeholders, concerns, viewpoint, viewpoint references, and model kinds.
+
+Stakeholders/concerns must come from requirements/docs/ADRs or explicit user input.
+This is documented alignment, not an automatic full-conformance claim.
 
 ## Presentation contract
-- Title states type + scope; legend explains non-obvious notation.
-- Context: system-in-focus visually dominant, externals peripheral.
-- Container/high-level: use polished overview hierarchy when applicable.
-- Component: container boundary obvious; externals outside.
-- Short responsibility text, no paragraphs in boxes.
-- Names remain identical across architecture views.
 
-## Renderer
-Mermaid flowchart + ELK preferred. Use PlantUML when UML/C4-PlantUML is explicitly
-needed. High-level views also load `high-level-architecture-style.md`.
+Context: system of interest visually dominant. Container/high-level views use the
+polished-overview style when appropriate. Component views keep the owning container
+boundary obvious. External systems stay peripheral.
 
 ## Blocking
-Mixed abstraction; unlabelled relationship; missing inter-process protocol; false
-boundary; cross-view renaming; static/runtime/deployment concerns crammed into one view.
+
+Mixed abstraction; unlabelled relation; missing protocol; false boundary; missing C4
+legend/type/responsibility in strict mode; cross-view renaming; bad ISO metadata
+references; static/runtime/deployment concerns crammed into one view.
