@@ -4,7 +4,7 @@ have(){ command -v "$1" >/dev/null 2>&1; }
 row(){ if have "$1"; then printf '  [x] %-20s %s\n' "$1" "$2"; else printf '  [ ] %-20s %s -> %s\n' "$1" "$2" "$3"; fi; }
 echo "=== RENDERERS ==="
 row mmdc "Mermaid CLI" "npm i -g @mermaid-js/mermaid-cli"
-row npx "Mermaid fallback" "install Node.js 18+"
+row npx "npx runner (package may need network/cache)" "install Node.js 18+"
 row plantuml "PlantUML" "brew install plantuml / apt install plantuml"
 row dot "Graphviz dot" "brew install graphviz / apt install graphviz"
 echo
@@ -31,11 +31,21 @@ row mvn "Maven deps" "install Maven"
 row psql "PostgreSQL schema" "install postgresql-client"
 row dotnet ".NET / EF" "install .NET SDK"
 echo
-if have mmdc || have npx; then
+if have mmdc; then
   if ls "${PUPPETEER_CACHE_DIR:-$HOME/.cache/puppeteer}"/chrome* >/dev/null 2>&1 || have google-chrome || have chromium || have chromium-browser; then
-    echo "OK: Mermaid validation path + browser appear available."
+    echo "OK: local Mermaid CLI + browser appear available."
   else
-    echo "WARNING: Mermaid path exists but no headless browser detected."
+    echo "WARNING: local Mermaid CLI found but no headless browser detected."
     echo "  npx puppeteer browsers install chrome-headless-shell"
   fi
-else echo "WARNING: Mermaid renderer unavailable."; fi
+elif have npx; then
+  echo "NOTE: npx exists, but Mermaid validation is only reachable if @mermaid-js/mermaid-cli is already cached/installed or network access is available."
+else
+  echo "WARNING: Mermaid renderer unavailable."
+fi
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+  echo "OK: PyYAML available for strict spec validation."
+else
+  echo "WARNING: PyYAML missing; strict spec validator cannot run."
+  echo "  python3 -m pip install pyyaml"
+fi

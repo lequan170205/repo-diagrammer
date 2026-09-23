@@ -81,6 +81,8 @@ Fallbacks are allowed only when they preserve semantics.
 
 ### Truth
 - every real node/relation has evidence;
+- `validate_spec.py` mechanically rejects missing evidence, broken relation endpoints,
+  duplicate IDs, invalid profile/type combinations, and selected type invariants;
 - directions and protocols match code/config;
 - async boundaries remain async;
 - cardinality/guards/ownership are not guessed;
@@ -203,6 +205,7 @@ repo-diagrammer/
 │   │   │   └── high-level-architecture-style.md
 │   │   └── scripts/
 │   │       ├── render_any.sh
+│   │       ├── validate_spec.py
 │   │       ├── visual_lint_svg.py
 │   │       └── self_test.sh
 │   ├── diagram/

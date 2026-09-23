@@ -26,11 +26,12 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/visual_lint_svg.py"
+python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate_spec.py"
 
 grep -q "No evidence, no element" "$core/SKILL.md"
 grep -q "semantic-ir.md" "$core/SKILL.md"
 grep -q "renderer-strategy.md" "$core/SKILL.md"
+grep -q "validate_spec.py" "$core/SKILL.md"
 grep -q "visual review" "$core/references/diagram-reviewer-procedure.md"
 
 echo "repo-diagrammer self-test: PASS"

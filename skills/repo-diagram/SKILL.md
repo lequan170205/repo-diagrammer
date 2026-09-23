@@ -75,6 +75,17 @@ condition, guard, cardinality, dataset, protocol and confidence when relevant.
 For a diagram set, create `docs/diagrams/model.spec.yaml` first and derive views
 from stable model IDs.
 
+Run the mechanical traceability gate before rendering:
+
+```bash
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_spec.py" path/to/<slug>.spec.yaml
+```
+
+It rejects missing evidence, broken endpoints, duplicate IDs, false presentation
+targets, profile/type mismatches, and type-specific structural violations. If PyYAML
+is unavailable, disclose that the mechanical spec gate was not run and perform the
+same checks in review.
+
 ## Step 4 — Choose type + profile
 
 Use `references/diagram-types.md`. Then load the exact quality profile under
