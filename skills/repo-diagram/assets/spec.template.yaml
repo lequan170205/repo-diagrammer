@@ -1,0 +1,46 @@
+# Diagram spec — fill this in from the code BEFORE writing any Mermaid.
+# Anything without `evidence` belongs in `gaps`, not in the diagram.
+# Save the filled version next to the delivered diagram as <slug>.spec.yaml.
+
+question: ""            # the single question this diagram answers
+type: ""                # c4-context | c4-container | c4-component | sequence | class |
+                        # er | state | dataflow | deployment | callgraph | usecase
+audience: ""            # onboarding | architecture-review | incident | stakeholder
+scope: ""               # feature / module / service / flow
+commit: ""              # git rev-parse --short HEAD
+extracted_with: []      # commands run, e.g. "pyreverse -o mmd -k -p Orders src/"
+
+nodes:
+  - id: ""              # simple id: letters, digits, underscore
+    label: ""           # exact code identifier where possible
+    kind: ""            # person | actor | external | container | component | class |
+                        # table | datastore | queue | job | usecase
+    tech: ""            # optional: language/framework/engine
+    responsibility: ""  # one line — required for C4 levels
+    evidence: ""        # path:line | path | tool:<command>
+
+edges:
+  - from: ""
+    to: ""
+    label: ""           # intent, e.g. "createOrder(dto)" / "publishes OrderCreated"
+    protocol: ""        # HTTPS/JSON | SQL | Kafka | gRPC | in-process | ...
+    sync: true          # false for queue/event/worker/goroutine/fire-and-forget
+    crosses_network: false
+    evidence: ""
+
+boundaries:             # subgraph groupings — only real boundaries
+  - name: ""
+    contains: []
+    kind: ""            # network | process | trust | bounded-context
+    evidence: ""
+
+layout:
+  direction: ""         # LR | TB
+  declaration_order: [] # node ids in reading order: actors → components → stores
+  crossing_target: 0    # max acceptable edge crossings
+
+gaps:
+  - ""                  # assumed, unresolved, dynamically dispatched, or inferred
+
+findings:               # optional: what a tech lead would flag
+  - ""
