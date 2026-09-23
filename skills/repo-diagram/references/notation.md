@@ -314,47 +314,61 @@ terminate on `conversation`, `call` and `notification`.
 Use `<br/>`, never `\n`. Keep labels short enough that peer nodes stay visually
 balanced.
 
-## Use case template
+## Use case
 
-Mermaid has no native use-case notation. Draw it as a flowchart, actors left, system
-boundary as a subgraph:
+### Mermaid >= 12 — native use-case notation
+
+When `mmdc --version` is 12 or newer, prefer native `usecase-beta` syntax because
+it preserves actor, system-boundary, include, extend and generalization semantics.
 
 ```mermaid
-flowchart LR
-  classDef actor fill:#fff,stroke:#333,stroke-width:2px
-  classDef uc fill:#e8f0fe,stroke:#4285f4
+---
+config:
+  layout: elk
+  look: classic
+---
+usecase-beta
+direction LR
 
-  customer(["Customer"])
-  admin(["Admin"])
-  scheduler(["Scheduler<br/><i>[System]</i>"])
+actor Customer
+actor Admin
 
-  subgraph sys["Shop Platform"]
-    uc1("Browse catalogue")
-    uc2("Place an order")
-    uc3("Pay for an order")
-    uc4("Cancel an order")
-    uc5("Authenticate")
-    uc6("Refund an order")
-    uc7("Expire stale carts")
-  end
+systemBoundary Shop["Shop Platform"] {
+  PlaceOrder("Place an order")
+  Authenticate("Authenticate")
+  RefundOrder("Refund an order")
+}
 
-  customer --> uc1
-  customer --> uc2
-  customer --> uc4
-  admin --> uc6
-  scheduler --> uc7
-
-  uc2 -.->|"&lt;&lt;include&gt;&gt;"| uc5
-  uc2 -.->|"&lt;&lt;include&gt;&gt;"| uc3
-  uc4 -.->|"&lt;&lt;extend&gt;&gt;"| uc6
-
-  class customer,admin,scheduler actor
-  class uc1,uc2,uc3,uc4,uc5,uc6,uc7 uc
+Customer --> PlaceOrder
+Admin --> RefundOrder
+PlaceOrder ..> Authenticate : include
 ```
 
-Note the HTML-escaped guillemets — raw `<<include>>` in an edge label can break the
-parser. If the user wants textbook UML notation with stick figures and ellipses, use
-PlantUML instead.
+Keep actors outside the boundary. `include`/`extend` must come from real flow
+semantics, not because the diagram looks incomplete.
+
+### Mermaid < 12 or unknown — PlantUML preferred
+
+Use PlantUML for true use-case notation:
+
+```plantuml
+@startuml
+left to right direction
+actor Customer
+actor Admin
+rectangle "Shop Platform" {
+  usecase UC1 as "Place an order"
+  usecase UC2 as "Authenticate"
+  usecase UC3 as "Refund an order"
+  Customer --> UC1
+  Admin --> UC3
+  UC1 ..> UC2 : <<include>>
+}
+@enduml
+```
+
+A flowchart fallback is allowed only when PlantUML is unavailable. Label it clearly
+as a use-case-like view; do not pretend generic rounded boxes are native UML.
 
 ## Styling
 

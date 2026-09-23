@@ -1,71 +1,85 @@
-# Diagram spec — fill this in from the code BEFORE writing any Mermaid.
-# Architectural nodes/edges without evidence belong in gaps, not in the diagram.
-# Save the filled version next to the delivered diagram as <slug>.spec.yaml.
+# Renderer-neutral evidence IR + one view.
+# Facts without evidence belong in gaps, not on the canvas.
 
-question: ""            # the single question this diagram answers
-type: ""                # c4-context | c4-container | c4-component | sequence | class |
-                        # er | state | dataflow | deployment | callgraph | usecase
-audience: ""            # onboarding | architecture-review | incident | stakeholder
-scope: ""               # feature / module / service / flow
-commit: ""              # git rev-parse --short HEAD
-extracted_with: []      # commands run, e.g. "pyreverse -o mmd -k -p Orders src/"
+question: ""
+type: ""                # c4-landscape | c4-context | c4-container | c4-component |
+                        # c4-dynamic | sequence | class | er | state | dataflow |
+                        # deployment | callgraph | usecase | flowchart | swimlane
+audience: ""
+scope: ""
+commit: ""
+extracted_with: []
 
 nodes:
-  - id: ""              # simple id: letters, digits, underscore
-    label: ""           # exact code identifier where possible
-    display_label: ""   # optional short presentation label; exact identifier must remain visible
-    kind: ""            # person | actor | external | container | component | class |
-                        # table | datastore | queue | job | usecase
-    tech: ""            # optional: language/framework/engine
-    responsibility: ""  # one short line — required for C4 levels
-    semantic_role: ""   # optional presentation role: clients | ingress | api | realtime |
-                        # messaging | processing | domain | observability | data | external
-    evidence: ""        # path:line | path | tool:<command>; may be a list when needed
+  - id: ""
+    label: ""
+    display_label: ""
+    kind: ""
+    tech: ""
+    responsibility: ""
+    stereotype: ""
+    semantic_role: ""
+    members: []
+    attributes: []
+    confidence: direct  # direct | extracted | resolved | partial
+    evidence: []
 
 edges:
-  - from: ""
+  - id: ""
+    from: ""
     to: ""
-    label: ""           # concise intent, e.g. "creates order" / "publishes OrderCreated"
-    protocol: ""        # HTTPS/JSON | SQL | RabbitMQ | gRPC | in-process | ...
-    sync: true          # false for queue/event/worker/goroutine/fire-and-forget
+    relation: ""
+    label: ""
+    protocol: ""
+    sync: true
     crosses_network: false
-    evidence: ""
+    order: null
+    condition: ""
+    guard: ""
+    action: ""
+    cardinality_from: ""
+    cardinality_to: ""
+    data: ""
+    frequency: ""
+    confidence: direct
+    evidence: []
 
-boundaries:             # architectural boundaries only — these make a real claim
-  - name: ""
+boundaries:
+  - id: ""
+    name: ""
     contains: []
-    kind: ""            # network | process | trust | bounded-context
-    evidence: ""
+    kind: ""
+    evidence: []
+
+view:
+  profile: ""
+  renderer: auto
+  fallback_renderer: auto
+  story: ""
+  primary_path: []
+  focus: []
+  suppress: []
+  visual_review_required: true
 
 presentation:
-  profile: ""           # polished-overview | technical | default
   title: ""
   subtitle: ""
-  primary_path: []      # ordered real node ids that should visually read as the main story
-  groups:               # presentation-only grouping; NEVER a dependency target
-    - id: ""
-      label: ""
-      contains: []      # real evidenced node ids
-      semantic_role: "" # role used only for visual treatment
-      basis: []         # member node ids that justify the grouping label
+  groups: []
   legend:
     show: false
-    node_roles: []      # e.g. ["messaging", "data", "external"]
-    edge_semantics: []  # e.g. ["sync", "async", "media", "webhook"]
+    node_roles: []
+    edge_semantics: []
 
 layout:
-  direction: ""         # LR | TB
-  declaration_order: [] # real node ids in reading order
-  rows: []              # optional visual row plan, e.g. [[clients], [nginx], [api, realtime]]
+  direction: ""
+  declaration_order: []
+  rows: []
   sidecars:
     left: []
     right: []
     bottom: []
-  crossing_target: 0    # max acceptable avoidable edge crossings
-  aspect_target: ""     # optional, e.g. "landscape 1.3-1.9"
+  crossing_target: 0
+  aspect_target: ""
 
-gaps:
-  - ""                  # assumed, unresolved, dynamically dispatched, or inferred
-
-findings:
-  - ""
+gaps: []
+findings: []
