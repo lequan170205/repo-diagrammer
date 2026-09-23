@@ -43,6 +43,21 @@ identifiers the code actually uses — never translate `OrderService`.
 
 Scripts live in `scripts/` next to this file. Reference files live in `references/`.
 
+### Host portability
+
+This skill must work in both Claude Code and OpenAI Codex.
+
+- For plugin installs, resolve the plugin root with `${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}`.
+  Codex sets `PLUGIN_ROOT` and also exposes `CLAUDE_PLUGIN_ROOT` for compatibility;
+  Claude Code exposes `CLAUDE_PLUGIN_ROOT`.
+- If both variables are unavailable because the skill was installed standalone, use
+  the actual directory containing this `SKILL.md` as the skill root.
+- Do not require one provider's subagent API. When isolated subagent tooling exists,
+  use it; otherwise perform the same bounded scout/review procedure inline.
+- Claude Code slash commands are convenience wrappers only. Codex may invoke the
+  bundled skills directly (for example `$repo-diagram` or `$diagram`) or trigger
+  them from natural language.
+
 ### Step 0 — Fix the question
 
 If the request is specific ("sequence diagram cho luồng checkout"), go straight to
@@ -60,7 +75,7 @@ Most requests name a *feature*, not a file. Turn the feature name into code anch
 before anything else:
 
 ```bash
-bash scripts/feature_trace.sh <keyword> [repo_root]
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/feature_trace.sh" <keyword> [repo_root]
 ```
 
 It searches routes, handlers, services, models, tables, events, jobs, config and
@@ -74,17 +89,19 @@ or a class. That one question saves ten wrong guesses.
 For whole-repo requests, or when you need the big picture first:
 
 ```bash
-bash scripts/repo_map.sh [repo_root]
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/repo_map.sh" [repo_root]
 ```
 
 It prints languages, layout, manifests, entrypoints, route files, schemas, infra
 files and the biggest source files. Read its output before opening any source file.
 
-**On a large repo, delegate.** Launch the `repo-scout` subagent (Task tool) with the
-feature keywords and the diagram type. It explores in its own context window and
-returns a compact evidence inventory, so the main context stays free for drawing.
-Launch several scouts in parallel when a diagram spans several subsystems — one per
-subsystem, not one per file.
+**On a large repo, delegate when the host supports isolated subagents.** Use the
+`repo-scout` procedure in the plugin-root `agents/repo-scout.md` with the feature
+keywords and diagram type. In Claude Code this can be the `repo-scout` Task
+subagent; in Codex use the available multi-agent/subagent tooling when enabled. If
+the host exposes no isolated subagent tool, perform the same bounded scout procedure
+inline rather than skipping it. For several independent subsystems, parallelise one
+scout per subsystem when supported — never one per file.
 
 ### Step 2 — Extract, don't recall
 
@@ -92,8 +109,8 @@ Before reading source by hand, check whether a tool can produce the relation
 deterministically:
 
 ```bash
-bash scripts/check_deps.sh                       # what's installed
-bash scripts/extract_structure.sh <mode> [path]  # classes | deps | routes | schema
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/check_deps.sh"
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/extract_structure.sh" <mode> [path]
 ```
 
 `extract_structure.sh` auto-detects the language and drives pyreverse, madge,
@@ -182,7 +199,7 @@ Mermaid's `C4Context` block is experimental and lays out poorly. For C4, use a
 ### Step 6 — Validate, then review
 
 ```bash
-bash scripts/validate_mermaid.sh path/to/output.md
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_mermaid.sh" path/to/output.md
 ```
 
 It extracts every ```mermaid block, renders each with mermaid-cli, and prints the
@@ -193,9 +210,11 @@ server is connected, you can also validate a single block through its
 If neither renderer is available, say so in the delivery. Do not claim validation you
 did not do.
 
-Then the tech-lead pass. On anything non-trivial, launch the `diagram-reviewer`
-subagent — it re-reads the cited evidence against the diagram in its own context and
-reports contradictions. Otherwise run the checklist yourself and fix what fails:
+Then the tech-lead pass. On anything non-trivial, apply the review procedure from
+the plugin-root `agents/diagram-reviewer.md`. When isolated subagent tooling is
+available, run that review in a clean context (Claude Code: the `diagram-reviewer`
+Task subagent; Codex: available multi-agent/subagent tooling). If not, run the same
+procedure inline. Fix everything it marks Blocking before delivering:
 
 - [ ] Every node and edge appears in the evidence table
 - [ ] Arrow direction = who initiates, not where bytes flow
