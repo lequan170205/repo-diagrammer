@@ -1,15 +1,15 @@
 ---
 name: diagram-doctor
-description: Diagnose Repo Diagrammer tooling for the current repository, including Mermaid rendering, headless browser availability, search tools, and language-specific static-analysis extractors.
+description: Diagnose renderer capabilities and extraction tooling for Repo Diagrammer.
 ---
 
 # Diagram Doctor
 
-Resolve paths relative to this skill directory.
-
 1. Run `../repo-diagram/scripts/check_deps.sh`.
-2. Detect the languages actually present in the current repository.
-3. Recommend only extraction tools relevant to those languages.
-4. Clearly distinguish a missing Mermaid renderer from a missing headless browser.
-5. Until rendering works, require delivered diagrams to be marked unvalidated.
-6. Do not install dependencies unless the user explicitly asks.
+2. Detect repo languages/shape.
+3. Report Mermaid version when local, browser status, PlantUML and Graphviz.
+4. State whether native Mermaid use-case (>=12) and swimlane (>=11.16) are eligible.
+5. Read `renderer-strategy.md` and identify preferred vs fallback renderer coverage
+   for diagram types relevant to this repo.
+6. Recommend only extraction tools relevant to detected languages.
+7. Do not install dependencies unless explicitly asked.
