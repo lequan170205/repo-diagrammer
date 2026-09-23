@@ -33,15 +33,31 @@ for f in "$core"/scripts/*.sh; do bash -n "$f"; done
 python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
-  python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-sequence.spec.yaml" >/dev/null
-  python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-strict-usecase.spec.yaml" >/dev/null
-  python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-strict-c4.spec.yaml" >/dev/null
-  for bad in     "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"     "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"     "$core/tests/fixtures/invalid-strict-er.spec.yaml"; do
-    if python3 "$core/scripts/validate_spec.py" "$bad" >/dev/null 2>&1; then
-      echo "invalid spec fixture unexpectedly passed: $bad" >&2
+  expect_pass() {
+    local fixture="$1"
+    echo "EXPECT PASS: $(basename "$fixture")"
+    if ! python3 "$core/scripts/validate_spec.py" "$fixture"; then
+      echo "expected valid fixture failed: $fixture" >&2
       exit 1
     fi
-  done
+  }
+
+  expect_fail() {
+    local fixture="$1"
+    echo "EXPECT FAIL: $(basename "$fixture")"
+    if python3 "$core/scripts/validate_spec.py" "$fixture"; then
+      echo "expected invalid fixture passed: $fixture" >&2
+      exit 1
+    fi
+  }
+
+  expect_pass "$core/tests/fixtures/valid-sequence.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-usecase.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-c4.spec.yaml"
+
+  expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
+  expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"
+  expect_fail "$core/tests/fixtures/invalid-strict-er.spec.yaml"
 fi
 
 if command -v dot >/dev/null 2>&1; then
