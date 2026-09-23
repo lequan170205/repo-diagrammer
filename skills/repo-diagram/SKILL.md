@@ -112,7 +112,9 @@ The profile defines:
 - Blocking review defects.
 
 High-level/backend/system architecture also loads
-`references/high-level-architecture-style.md`.
+`references/high-level-architecture-style.md`. In practical mode it MUST also load
+`references/practical-architecture-compiler.md`; the full IR remains detailed while
+the canvas becomes a simplified projection.
 
 ## Step 5 — Choose renderer and write source
 
@@ -122,7 +124,11 @@ Do not default blindly to Mermaid.
 Record preferred/fallback renderer in the spec. A fallback is allowed only if it
 preserves semantics.
 
-Plan layout before source:
+Plan the **view projection** before renderer source. For practical high-level
+architecture, define composites, visible nodes, projected edges with `basis_edges`,
+and layout regions first.
+
+Then plan layout:
 - primary story/path;
 - declaration/participant order;
 - real boundaries;
@@ -132,7 +138,13 @@ Plan layout before source:
 
 ## Step 6 — Render and visual-review
 
-For source files:
+For practical polished high-level architecture, render directly from the spec:
+
+```bash
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_practical_architecture.py" path/to/<slug>.spec.yaml path/to/<slug>.svg --png path/to/<slug>.png
+```
+
+For other source files:
 ```bash
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.mmd
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.puml

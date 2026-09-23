@@ -101,7 +101,25 @@ presentation:
   style: ""
   title: ""
   subtitle: ""
-  groups: []
+  groups: []            # layout-only groups; no model edges terminate here
+  projection:
+    enabled: false
+    visible_nodes: []   # real node ids and/or composite ids
+    copy: {}             # optional concise card copy keyed by visible real-node id
+    composites:
+      - id: ""
+        label: ""
+        members: []     # real model node ids
+        responsibility: ""
+        semantic_role: ""
+    visible_edges:
+      - id: ""
+        from: ""        # visible real node or composite id
+        to: ""
+        label: ""
+        protocol: ""
+        style: ""       # sync | async | media | webhook | data
+        basis_edges: [] # exact model edge ids summarized by this arrow
   legend:
     show: false
     node_roles: []
@@ -111,6 +129,16 @@ layout:
   direction: ""
   declaration_order: []
   rows: []
+  regions:
+    top: []
+    ingress: []
+    core: []
+    messaging: []
+    support: []
+    bottom-left: []
+    bottom-center: []
+    bottom-right: []
+    right: []
   sidecars:
     left: []
     right: []
