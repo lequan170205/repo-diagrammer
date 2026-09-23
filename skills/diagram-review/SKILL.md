@@ -1,15 +1,19 @@
 ---
 name: diagram-review
-description: Review an existing repository diagram against the source code, checking evidence, arrow semantics, async boundaries, abstraction, readability, and render validity. Use when the user asks to audit, verify, or review a diagram.
+description: Review a repository diagram against source, semantic type rules, renderer fidelity, abstraction, and rendered visual quality.
 ---
 
 # Diagram Review
 
-Resolve paths relative to this skill directory.
+1. Read `../repo-diagram/SKILL.md`.
+2. Read the diagram plus its spec/evidence when present.
+3. Identify the diagram type and load its profile from
+   `../repo-diagram/references/profiles/`.
+4. Render with `../repo-diagram/scripts/render_any.sh` when source format is
+   mmd/puml/dot; use `validate_mermaid.sh` for Markdown Mermaid blocks.
+5. Apply `diagram-reviewer-procedure.md`, including type-specific visual acceptance.
+6. If a shared `model.spec.yaml` exists, verify the view against it.
+7. Report Blocking / Should fix / Optional. Do not edit unless the user asked for fixes.
 
-1. Read `../repo-diagram/SKILL.md` and use its evidence and validation rules.
-2. Read the diagram and its evidence table/spec if present.
-3. Validate Mermaid with `../repo-diagram/scripts/validate_mermaid.sh` when a local renderer is available.
-4. Apply the review procedure from `../repo-diagram/references/diagram-reviewer-procedure.md`.
-5. If isolated subagent tooling is available, run the review in an isolated context. Otherwise perform the same review inline.
-6. Report findings as Blocking / Should fix / Optional. Do not edit the diagram unless the user asked for fixes.
+If evidence is absent, say truth cannot be fully verified; semantic and visual review
+can still proceed.

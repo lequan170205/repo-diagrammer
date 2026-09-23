@@ -11,9 +11,12 @@ case "$ext" in
     else echo "renderer unavailable: Mermaid CLI" >&2; exit 2; fi ;;
   puml|plantuml)
     if ! have plantuml; then echo "renderer unavailable: PlantUML" >&2; exit 2; fi
-    outdir="$(dirname "$output")"; mkdir -p "$outdir"; plantuml -tsvg -o "$outdir" "$input"
-    generated="$outdir/$(basename "${input%.*}").svg"
-    [ "$generated" = "$output" ] || mv "$generated" "$output" ;;
+    plantuml -tsvg "$input"
+    generated="${input%.*}.svg"
+    if [ "$generated" != "$output" ]; then
+      mkdir -p "$(dirname "$output")"
+      mv "$generated" "$output"
+    fi ;;
   dot)
     if ! have dot; then echo "renderer unavailable: Graphviz" >&2; exit 2; fi
     dot -Tsvg "$input" -o "$output" ;;

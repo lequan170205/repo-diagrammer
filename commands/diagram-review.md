@@ -1,18 +1,18 @@
 ---
-description: Review an existing diagram against the code it claims to describe
-argument-hint: [path to diagram file, or paste the mermaid]
+description: Review an existing diagram against source, its type contract, and rendered quality
+argument-hint: [path to diagram/spec]
 allowed-tools: Read, Grep, Glob, Bash, Task
 ---
 
-Review this diagram against the codebase: **$ARGUMENTS**
+Review: **$ARGUMENTS**
 
-Launch the `diagram-reviewer` subagent with the diagram and the repo root. While it
-works, run `${CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_mermaid.sh` on the file yourself so a syntax
-failure is caught immediately.
+Load the core workflow, the diagram's type profile, and its evidence/spec. Render with
+`${CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh` when possible
+(or `validate_mermaid.sh` for Markdown Mermaid). Then run the diagram-reviewer
+procedure against source and the rendered output.
 
-Report its findings grouped as Blocking / Should fix / Optional, then offer to apply
-the fixes. Do not edit the diagram without being asked.
+Report Blocking / Should fix / Optional plus verification counts, selected profile,
+renderer, and visual-review status. Do not edit unless asked.
 
-If the diagram has no evidence table, say so first — an unverifiable diagram can only
-be reviewed for semantics and readability, not for truth, and that limitation should
-be stated rather than glossed over.
+If no evidence exists, state that truth verification is limited; never silently treat
+the picture as source-backed.

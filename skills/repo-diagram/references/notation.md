@@ -10,7 +10,8 @@ Templates that render, plus the things that break the parser.
 - [ER](#er)
 - [State](#state)
 - [C4 template](#c4-template)
-- [Use case template](#use-case-template)
+- [Use case](#use-case)
+- [Swimlane](#swimlane)
 - [Styling](#styling)
 - [PlantUML](#plantuml)
 
@@ -369,6 +370,38 @@ rectangle "Shop Platform" {
 
 A flowchart fallback is allowed only when PlantUML is unavailable. Label it clearly
 as a use-case-like view; do not pretend generic rounded boxes are native UML.
+
+## Swimlane
+
+### Mermaid >= 11.16 — native swimlane
+
+Use native `swimlane-beta` when ownership/handoffs are the point and the installed
+Mermaid is 11.16 or newer.
+
+```mermaid
+swimlane-beta LR
+
+subgraph requester["Requester"]
+  start([Start])
+  submit["Submit request"]
+end
+
+subgraph service["Service"]
+  validate{"Valid?"}
+  process["Process request"]
+end
+
+start --> submit
+submit -->|"request handoff"| validate
+validate -->|"yes"| process
+```
+
+Top-level `subgraph` blocks are lanes. Keep every lane on one ownership dimension
+(actor, team, or system), put decisions in the lane that owns them, and label
+meaningful cross-lane handoffs.
+
+For older/unknown Mermaid versions, use flowchart subgraphs or PlantUML activity
+notation and disclose that the fallback is being used.
 
 ## Styling
 

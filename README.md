@@ -1,16 +1,32 @@
 # repo-diagrammer
 
-**Repo Diagrammer** is an evidence-backed codebase diagram workflow for **Claude Code**
-and **OpenAI Codex**.
+**Repo Diagrammer** is a source-backed diagram intelligence workflow for **Claude
+Code** and **OpenAI Codex**.
 
-Give it a repository and ask for an architecture, sequence, class, ER, state,
-dataflow, deployment, call graph, or use case diagram. The workflow traces the code,
-builds a spec with `file:line` evidence for every node and edge, validates Mermaid
-when a renderer is available, and runs a tech-lead review pass before delivery.
+It is designed to behave less like “ask an LLM to draw Mermaid” and more like a
+technical lead analysing a repository:
 
-Supported diagram types:
+```text
+question
+  → repository evidence
+  → semantic IR
+  → selected view
+  → type-specific quality profile
+  → renderer selection
+  → rendered visual review
+  → source-backed review
+```
 
-- C4 Context / Container / Component
+The invariant is:
+
+> **No evidence, no element.**
+
+A diagram must be both **true** and **professionally communicative**. Passing source
+verification does not excuse unreadable auto-layout.
+
+## Supported views
+
+- C4 Landscape / Context / Container / Component / Dynamic
 - Sequence
 - Class
 - ER
@@ -19,23 +35,81 @@ Supported diagram types:
 - Deployment
 - Call graph
 - Use case
+- Flowchart
+- Swimlane
 
----
+Every type has its own semantic and presentation contract under
+`skills/repo-diagram/references/profiles/`.
+
+## Model once, create many views
+
+The workflow uses a renderer-neutral **Evidence IR**. Real facts are traced once with
+stable IDs and evidence; diagrams select views from those facts.
+
+For a diagram set:
+
+```text
+docs/diagrams/model.spec.yaml
+docs/diagrams/context.spec.yaml
+docs/diagrams/container.spec.yaml
+docs/diagrams/core-flow.sequence.spec.yaml
+...
+```
+
+This prevents the same service, relation, or boundary from changing meaning between
+architecture, sequence, deployment, ER, and other views.
+
+## Renderer strategy
+
+The plugin does not force Mermaid onto every problem.
+
+| Type | Preferred renderer |
+|---|---|
+| C4 static / dataflow / flowchart | Mermaid + ELK |
+| Sequence | Mermaid simple; PlantUML complex |
+| Class | PlantUML |
+| ER | Mermaid |
+| State | Mermaid |
+| Deployment | PlantUML |
+| Call graph | Graphviz dot |
+| Use case | Mermaid >=12; PlantUML fallback |
+| Swimlane | Mermaid >=11.16; fallback otherwise |
+
+Fallbacks are allowed only when they preserve semantics.
+
+## Quality gates
+
+### Truth
+- every real node/relation has evidence;
+- directions and protocols match code/config;
+- async boundaries remain async;
+- cardinality/guards/ownership are not guessed;
+- unknowns go to Gaps.
+
+### Type contract
+The selected profile checks the semantics that matter for that diagram: message order
+for sequence, relation type for class, constraints/cardinality for ER, transitions for
+state, topology for deployment, actor goals for use case, ownership for swimlane, etc.
+
+### Visual acceptance
+The **rendered** result is inspected at 100%. Layout, hierarchy, crossings, labels,
+density and legend semantics can be Blocking defects.
+
+High-level architecture additionally uses the polished technical-poster style from
+`high-level-architecture-style.md`.
 
 ## Install
 
 ### Claude Code
-
-Add this repository as a marketplace:
 
 ```text
 /plugin marketplace add lequan170205/repo-diagrammer
 /plugin install repo-diagrammer@repo-diagrammer-marketplace
 ```
 
-Start a new Claude Code session after installation.
+Restart Claude Code after installation.
 
-Claude Code entrypoints:
+Entry points:
 
 ```text
 /diagram
@@ -44,31 +118,15 @@ Claude Code entrypoints:
 /diagram-doctor
 ```
 
-Natural-language requests also trigger the core `repo-diagram` skill.
-
 ### OpenAI Codex
-
-Add the same repository as a Codex marketplace:
 
 ```bash
 codex plugin marketplace add lequan170205/repo-diagrammer
 ```
 
-Then start Codex:
+Open `/plugins`, install **Repo Diagrammer**, then start a new Codex chat.
 
-```bash
-codex
-```
-
-Open the plugin browser:
-
-```text
-/plugins
-```
-
-Find **Repo Diagrammer** and install it. Start a new Codex chat after installation.
-
-Codex can trigger the workflow naturally, or explicitly through the bundled skills:
+Explicit skills:
 
 ```text
 $repo-diagram
@@ -78,239 +136,98 @@ $diagram-set
 $diagram-doctor
 ```
 
-Codex may ask you to review/trust the bundled hook before it runs. If you do not
-trust the hook, the workflow still works; automatic Mermaid validation after file
-writes is simply skipped.
-
 ### Direct-copy fallback
 
-Plugin installation is preferred because it wires the bundled hook and MCP config.
-
-For a skills-only install:
-
 ```bash
-# Claude Code — user scope
 bash install.sh --claude
-
-# Codex — user scope (~/.codex/skills)
 bash install.sh --codex
-
-# Both
 bash install.sh --both
-
-# Project scope
-bash install.sh --claude ./my-project
-bash install.sh --codex ./my-project
 ```
 
-Project-scoped Codex skills are copied to `.agents/skills/`.
+Project scope is also supported by passing the project directory.
 
----
+## Tooling
 
-## Mermaid renderer
-
-Install once if you want local render validation:
+Recommended renderer coverage:
 
 ```bash
 npm i -g @mermaid-js/mermaid-cli
 npx puppeteer browsers install chrome-headless-shell
+# plus PlantUML and Graphviz when their diagram types matter
 ```
 
-A missing headless browser often looks like a Mermaid syntax failure. The workflow
-distinguishes environment failures from diagram syntax failures.
+Run `/diagram-doctor` or `$diagram-doctor` to detect renderer versions,
+capabilities, headless browser and repo-specific extraction tools.
 
-Run the doctor after installation:
-
-- Claude Code: `/diagram-doctor`
-- Codex: `$diagram-doctor`
-
----
+Mermaid capabilities are version-gated:
+- >=11.16: native swimlane;
+- >=12: native use-case.
 
 ## Usage
 
-Natural language works on both hosts:
-
 ```text
-draw a sequence diagram for the checkout flow
-draw a class diagram for the payments module
-draw an ERD from the migrations
-how does the notification module work? draw it
-draw a use case diagram for this system
 draw the backend architecture
+draw a sequence diagram for checkout
+draw the domain class model for payments
+draw a physical ERD from migrations
+draw the order lifecycle state machine
+draw the ingestion dataflow
+draw production deployment topology
+show what calls this handler
+draw use cases for the admin role
+draw the approval process as a swimlane
 ```
 
-Vietnamese works too:
+Vietnamese natural language works too.
 
-```text
-vẽ sequence diagram cho luồng checkout
-vẽ use case diagram của luồng nhắn tin
-vẽ kiến trúc backend của repo này
-```
+## Diagram sets
 
-Tell the agent the intended audience when it matters. An onboarding diagram should
-hide most failure paths; an incident/debugging diagram should emphasize them.
-
-### Explicit workflow entrypoints
-
-| Goal | Claude Code | Codex |
-|---|---|---|
-| One diagram | `/diagram <request>` | `$diagram <request>` |
-| Diagram set | `/diagram-set <scope>` | `$diagram-set <scope>` |
-| Review a diagram | `/diagram-review <file>` | `$diagram-review <file>` |
-| Check tooling | `/diagram-doctor` | `$diagram-doctor` |
-| Core automatic skill | natural language | `$repo-diagram` or natural language |
-
----
-
-## Workflow
-
-The core workflow is the same on Claude Code and Codex:
-
-1. **Locate the feature** with `feature_trace.sh` and repository mapping.
-2. **Extract deterministically** with language-aware tools where possible.
-3. **Write the spec first** using `spec.template.yaml`.
-4. **Choose one diagram type and abstraction level** with explicit size budgets.
-5. **Render from the spec**, not from memory.
-6. **Validate and review** against source code.
-7. **Deliver** the diagram, evidence table, gaps, and the saved spec.
-
-The central rule is:
-
-> **No evidence, no element.**
-
-A cache, queue, auth service, load balancer, database, or relationship does not appear
-on the canvas merely because it would make architectural sense. It needs evidence in
-the repository.
-
-### Polished high-level architecture
-
-Generic requests such as "draw the backend architecture", "high-level architecture"
-and "system overview" also use a `polished-overview` presentation profile.
-
-That profile adds a second quality gate without weakening traceability:
-
-- evidence still controls every real node and edge;
-- presentation groups may only contain evidenced nodes and never receive edges;
-- clients → ingress → core services → messaging/support → data/observability is the
-  default visual hierarchy when the repo supports those lanes;
-- semantic pastel roles, concise labels and a compact legend keep the diagram
-  presentation-ready;
-- the reviewer treats ugly/unbalanced high-level renders as Blocking `VISUAL`
-  findings and requires another render pass.
-
-See `skills/repo-diagram/references/high-level-architecture-style.md`.
-
----
-
-## Cross-host behavior
-
-The repository keeps one source of truth for the workflow.
-
-### Shared
-
-`skills/repo-diagram/` contains:
-
-- `SKILL.md` — the seven-step workflow
-- `references/diagram-types.md`
-- `references/extraction.md`
-- `references/notation.md`
-- `references/layout-quality.md`
-- `references/high-level-architecture-style.md`
-- `references/repo-scout-procedure.md`
-- `references/diagram-reviewer-procedure.md`
-- `assets/spec.template.yaml`
-- extraction and Mermaid validation scripts
-
-Both Claude Code and Codex use these same files.
-
-### Claude Code-specific adapters
-
-- `.claude-plugin/plugin.json`
-- `.claude-plugin/marketplace.json`
-- `commands/` for slash commands
-- `agents/` as Claude subagent wrappers
-
-### Codex-specific adapters
-
-- `.codex-plugin/plugin.json`
-- `skills/*/agents/openai.yaml` for Codex-facing skill metadata
-- `$diagram`, `$diagram-review`, `$diagram-set`, and `$diagram-doctor` wrapper
-  skills
-
-The core skill does **not** require a provider-specific subagent API. Claude Code can
-use its Task subagents. Codex can use multi-agent/subagent tooling when available.
-If neither is available, the same bounded scout/reviewer procedures run inline.
-
----
-
-## Why it is stricter than asking for a diagram directly
-
-### 1. Static extraction before freehand reading
-
-The workflow prefers pyreverse, madge, dependency-cruiser, `go list`, jdeps,
-database schema tools, Prisma schemas, and route extraction before hand-tracing code.
-
-### 2. Spec before Mermaid
-
-Every node and edge gets evidence before it can be rendered. Unsupported ideas go in
-**Gaps**, not on the canvas.
-
-### 3. Render validation
-
-`validate_mermaid.sh` renders real Mermaid blocks and distinguishes syntax errors
-from a missing browser/runtime.
-
-The bundled `PostToolUse` hook supports both Claude Code writes and Codex
-`apply_patch` writes.
-
-### 4. Source-backed review
-
-The reviewer checks cited source lines, missing boundaries, reversed arrows, async
-edges drawn as sync, ER cardinality, abstraction mixing, and readability.
-
----
-
-## Limitations
-
-- **Use case diagrams are partly inferred.** Actors come from roles/permissions and
-  use cases from reachable entrypoints. Product intent still belongs to the product
-  owner.
-- **Static call graphs miss dynamic dispatch.** Interfaces, DI, reflection, event
-  buses, and framework wiring may require manual tracing.
-- **Sequence diagrams require runtime reasoning.** Static tools can provide anchors
-  but cannot reconstruct the whole execution order reliably.
-- **PlantUML does not render natively on GitHub.** Mermaid remains the default unless
-  textbook UML/C4 notation is specifically needed.
-
----
+`/diagram-set` / `$diagram-set` builds a shared model once, then derives only
+useful views. It runs a cross-view consistency check before delivery.
 
 ## Repository structure
 
 ```text
 repo-diagrammer/
+├── commands/                         Claude Code wrappers
+├── agents/                           Claude subagent wrappers
+├── skills/
+│   ├── repo-diagram/
+│   │   ├── SKILL.md                 core brain/workflow
+│   │   ├── assets/spec.template.yaml
+│   │   ├── references/
+│   │   │   ├── semantic-ir.md
+│   │   │   ├── renderer-strategy.md
+│   │   │   ├── profiles/
+│   │   │   ├── layout-quality.md
+│   │   │   └── high-level-architecture-style.md
+│   │   └── scripts/
+│   │       ├── render_any.sh
+│   │       ├── visual_lint_svg.py
+│   │       └── self_test.sh
+│   ├── diagram/
+│   ├── diagram-review/
+│   ├── diagram-set/
+│   └── diagram-doctor/
 ├── .claude-plugin/
-│   ├── plugin.json
-│   └── marketplace.json
 ├── .codex-plugin/
-│   └── plugin.json
-├── .mcp.json
-├── commands/                         Claude Code slash-command adapters
-├── agents/                           Claude Code subagent adapters
-├── hooks/
-│   ├── hooks.json
-│   └── validate_on_write.sh          Claude Write/Edit + Codex apply_patch
-├── install.sh
-└── skills/
-    ├── repo-diagram/                  shared source-of-truth workflow
-    │   ├── SKILL.md
-    │   ├── agents/openai.yaml
-    │   ├── references/
-    │   ├── assets/spec.template.yaml
-    │   └── scripts/
-    ├── diagram/                       Codex-friendly explicit wrapper
-    ├── diagram-review/
-    ├── diagram-set/
-    └── diagram-doctor/
+└── install.sh
 ```
+
+## Design basis
+
+The workflow is influenced by the C4 model's abstraction/notation/review discipline,
+Structurizr's “single model, multiple views” approach, and renderer-specific strengths
+from Mermaid, PlantUML, and Graphviz. See
+`skills/repo-diagram/references/research-basis.md`.
+
+## Limitations
+
+- Runtime sequence and dynamic dispatch still require bounded manual tracing when
+  static tools cannot resolve them.
+- Use cases derived from routes/roles may not capture full product intent; uncertainty
+  must be explicit.
+- A missing renderer means visual review is **unverified**, never silently passed.
+- Auto-generated extraction is input to curation, not the final diagram.
 
 MIT.

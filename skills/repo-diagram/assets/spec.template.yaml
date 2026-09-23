@@ -62,6 +62,7 @@ view:
   visual_review_required: true
 
 presentation:
+  style: ""             # e.g. polished-overview; presentation only, never a fact
   title: ""
   subtitle: ""
   groups: []
