@@ -1,6 +1,7 @@
 {
   "mcpServers": {
-    "mermaid-validator": {
+    "mermaid_validator": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "@rtuin/mcp-mermaid-validator@latest"]
     }
