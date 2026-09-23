@@ -203,7 +203,7 @@ bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_m
 ```
 
 It extracts every ```mermaid block, renders each with mermaid-cli, and prints the
-failing block with line numbers plus the likely cause. If the `mermaid-validator` MCP
+failing block with line numbers plus the likely cause. If the `mermaid_validator` MCP
 server is connected, you can also validate a single block through its
 `validateMermaid` tool without writing a file — useful while iterating.
 
