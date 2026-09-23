@@ -43,6 +43,12 @@ diagram in most repos.
 Sources: `docker-compose.yml`, k8s manifests, `Procfile`, CI deploy jobs, multiple
 entrypoints under `cmd/`.
 
+For a generic "high-level architecture", "backend architecture" or "system overview"
+request, keep C4-container truth but use the `polished-overview` presentation profile.
+Presentation groups may visually cluster related containers, but they are not
+architectural boundaries and may not receive edges. If grouping would hide which
+container an edge targets, keep the containers visible inside the group.
+
 ### C4 Component
 Inside **one** container: controllers, services, repositories, gateways, adapters.
 Don't show other containers' internals. Group by responsibility, not by folder, when
@@ -139,8 +145,9 @@ class and an HTTP header on the same canvas.
 
 ## Common requests → what to actually draw
 
-- **"Vẽ sơ đồ hệ thống"** → C4 Container. That's what people mean ~80% of the time.
-  Offer Context as a companion if there are real external systems.
+- **"Vẽ sơ đồ hệ thống" / "high-level architecture" / "backend architecture"** →
+  C4 Container truth + `polished-overview` presentation by default. Offer Context as
+  a companion if there are real external systems.
 - **"Vẽ flow của API /orders"** → Sequence, happy path; add a second for the main
   failure if the audience is engineering.
 - **"Vẽ database"** → ER from migrations. Over 15 tables, ask which context, or lead

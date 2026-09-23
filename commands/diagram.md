@@ -19,11 +19,18 @@ shortcut to writing Mermaid:
 3. **Write the spec first.** Fill `assets/spec.template.yaml` with `path:line` or
    `tool:<command>` evidence for every node and edge. Mark async edges. No evidence →
    Gaps, not the canvas.
-4. **Check type, level and budget** against `references/diagram-types.md`.
+4. **Check type, level and budget** against `references/diagram-types.md`. For a
+   generic high-level/backend/system architecture request, load
+   `references/high-level-architecture-style.md` and set the spec presentation
+   profile to `polished-overview`.
 5. **Render** per `references/notation.md`, declaring nodes explicitly in reading
-   order per `references/layout-quality.md`.
-6. **Validate** with `${CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_mermaid.sh`, then launch the
-   `diagram-reviewer` subagent. Fix everything it marks Blocking before delivering.
+   order per `references/layout-quality.md`. Plan rows before Mermaid; keep exact
+   identifiers visible; presentation groups may not receive edges.
+6. **Validate and visually review** with
+   `${CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/validate_mermaid.sh`. Inspect
+   the rendered result at 100%, iterate until the visual acceptance gate passes, then
+   launch the `diagram-reviewer` subagent. Fix every Blocking finding, including
+   `VISUAL`, before delivering.
 7. **Deliver** to `docs/diagrams/<slug>.md` with the diagram, a How-to-read section,
    the Evidence table, and Gaps. Save the spec as `docs/diagrams/<slug>.spec.yaml`.
 

@@ -20,7 +20,7 @@ identifiers the code actually uses — never translate `OrderService`.
 
 ---
 
-## Five rules that override everything else
+## Six rules that override everything else
 
 1. **No evidence, no element.** Every box and arrow traces to something real: a file,
    a symbol, a route, a migration, a config key. Anything you cannot point at goes in
@@ -36,6 +36,12 @@ identifiers the code actually uses — never translate `OrderService`.
    you should cram. Budgets in Step 4.
 5. **It must render.** Validate before delivering (Step 6). Never claim a diagram was
    validated when it wasn't.
+6. **Truth and presentation are separate gates.** Evidence decides what may appear;
+   presentation decides whether a reviewer can understand it quickly. A source-correct
+   but tangled, unbalanced or visually noisy high-level diagram is not finished. Generic
+   requests such as "high-level architecture", "backend architecture" or "system
+   overview" use the `polished-overview` presentation profile by default; see
+   `references/high-level-architecture-style.md`.
 
 ---
 
@@ -144,6 +150,11 @@ While filling it in:
 - Record every network hop. Reviewers look at boundaries first.
 - Two nodes with the same label but different evidence usually means a duplicated
   abstraction. Say so — that is the kind of thing a tech lead flags.
+- Presentation metadata is not architecture evidence. Titles, legends, row hints and
+  visual-group labels may improve comprehension, but they must never introduce a new
+  service, dependency or boundary. A presentation group may contain only already
+  evidenced nodes. Edges still terminate on the real evidenced nodes, never on a
+  presentation-only group.
 
 ### Step 4 — Choose type, level and budget
 
@@ -181,6 +192,14 @@ Budgets — over budget means split or zoom out:
 Collapsing is judgement, not truncation: group by package or bounded context and name
 the group after what it does, never "Others".
 
+For generic **high-level architecture / backend architecture / system overview**
+requests, use the `polished-overview` presentation profile unless the user explicitly
+asks for raw C4 notation or a detail-heavy engineering view. Read
+`references/high-level-architecture-style.md` before rendering. The profile changes
+layout and styling only — it does not weaken evidence requirements. If collapsing
+containers would blur which service an edge actually targets, keep the containers
+separate and place them inside a presentation group instead.
+
 ### Step 5 — Render
 
 Default to **Mermaid** — it renders natively on GitHub, GitLab, VS Code, Obsidian.
@@ -196,6 +215,12 @@ Mermaid's `C4Context` block is experimental and lays out poorly. For C4, use a
 `flowchart` with `subgraph` boundaries and the C4 styling convention in
 `references/notation.md`.
 
+For `polished-overview`, plan the visual rows *before* writing Mermaid: clients →
+ingress → core service lane → broker/async lane → support/data/observability, with
+external integrations kept at the perimeter. Use short display text while keeping the
+real code identifier visible, and use `<br/>` rather than literal `\n`. The
+reference profile defines the default palette, hierarchy, legend and density limits.
+
 ### Step 6 — Validate, then review
 
 ```bash
@@ -209,6 +234,13 @@ server is connected, you can also validate a single block through its
 
 If neither renderer is available, say so in the delivery. Do not claim validation you
 did not do.
+
+Then perform the **visual acceptance gate**. For high-level architecture using
+`polished-overview`, inspect the rendered SVG/PNG (or the host's rendered Mermaid)
+against `references/high-level-architecture-style.md`. Reorder and re-render until
+the primary path is obvious, labels are clean, spacing is balanced and crossings are
+within target. If no renderer is available, state that visual validation is
+unverified — do not claim the polished gate passed.
 
 Then the tech-lead pass. On anything non-trivial, apply the review procedure from
 `references/diagram-reviewer-procedure.md`. When isolated subagent tooling is
@@ -237,6 +269,7 @@ Write a Markdown file in this shape:
 **Question answered:** <one line>
 **Scope:** <feature/module/flow>  •  **Level:** <C4 L2 / sequence / …>
 **Commit:** <git rev-parse --short HEAD>  •  **Validated:** <yes — mermaid-cli / no — reason>
+**Presentation:** <polished-overview / technical / default>  •  **Visual review:** <passed / unverified — reason>
 
 ```mermaid
 …
@@ -274,6 +307,7 @@ produces a reviewable diff.
 - `references/extraction.md` — static-analysis recipes per language
 - `references/notation.md` — Mermaid/PlantUML syntax, parser traps, C4 template
 - `references/layout-quality.md` — what makes a diagram readable
+- `references/high-level-architecture-style.md` — polished high-level architecture presentation contract
 - `references/repo-scout-procedure.md` — bounded repository exploration procedure
 - `references/diagram-reviewer-procedure.md` — source-backed tech-lead review procedure
 - `assets/spec.template.yaml` — the intermediate spec
