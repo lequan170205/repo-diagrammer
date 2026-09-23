@@ -369,6 +369,8 @@ if mode == "textbook-strict":
         for i, node in enumerate(nodes):
             if not isinstance(node, dict):
                 continue
+            if not nonempty(node.get("kind")):
+                errors.append(f"nodes[{i}].kind: C4 strict mode requires explicit element type")
             if not nonempty(node.get("responsibility")):
                 errors.append(f"nodes[{i}].responsibility: C4 element requires short description")
             if diagram_type in {"c4-container", "c4-component"} and node.get("kind") in {"container", "component", "datastore", "queue"}:
@@ -409,10 +411,18 @@ if mode == "textbook-strict":
         else:
             if not nonempty(viewpoint.get("name")):
                 errors.append("architecture_description.viewpoint.name: required")
-            for sid in viewpoint.get("stakeholders") or []:
+            viewpoint_stakeholders = viewpoint.get("stakeholders") or []
+            viewpoint_concerns = viewpoint.get("concerns") or []
+            if not isinstance(viewpoint_stakeholders, list) or not viewpoint_stakeholders:
+                errors.append("architecture_description.viewpoint.stakeholders: viewpoint must address at least one known stakeholder")
+                viewpoint_stakeholders = []
+            if not isinstance(viewpoint_concerns, list) or not viewpoint_concerns:
+                errors.append("architecture_description.viewpoint.concerns: viewpoint must frame at least one known concern")
+                viewpoint_concerns = []
+            for sid in viewpoint_stakeholders:
                 if sid not in stakeholder_ids:
                     errors.append(f"architecture_description.viewpoint.stakeholders: unknown stakeholder {sid!r}")
-            for cid in viewpoint.get("concerns") or []:
+            for cid in viewpoint_concerns:
                 if cid not in concern_ids:
                     errors.append(f"architecture_description.viewpoint.concerns: unknown concern {cid!r}")
             model_kinds = viewpoint.get("model_kinds") or []
@@ -435,8 +445,13 @@ if mode == "textbook-strict":
             if not any(isinstance(node, dict) and node.get("kind") == "relationship" for node in nodes):
                 errors.append("conceptual-chen: relationship must be a first-class relationship node")
             for i, edge in enumerate(edges):
-                if isinstance(edge, dict) and edge.get("relation") not in {"participates", "identifies", "has-attribute", "isa"}:
+                if not isinstance(edge, dict):
+                    continue
+                if edge.get("relation") not in {"participates", "identifies", "has-attribute", "isa"}:
                     errors.append(f"edges[{i}].relation: invalid Chen relation {edge.get('relation')!r}")
+                participation = edge.get("participation")
+                if nonempty(participation) and participation not in {"total", "partial"}:
+                    errors.append(f"edges[{i}].participation: Chen participation must be total or partial")
             weak_ids = {n.get("id") for n in nodes if isinstance(n, dict) and n.get("kind") == "weak-entity"}
             for weak_id in weak_ids:
                 if not any(isinstance(e, dict) and e.get("relation") == "identifies" and (e.get("from") == weak_id or e.get("to") == weak_id) for e in edges):

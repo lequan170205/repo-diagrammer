@@ -50,6 +50,7 @@ edges:
     role_to: ""
     navigability: ""
     identifying: null
+    participation: ""      # conceptual Chen: total | partial, when evidenced
     data: ""
     frequency: ""
     confidence: direct

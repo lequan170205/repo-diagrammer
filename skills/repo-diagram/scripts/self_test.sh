@@ -23,6 +23,7 @@ required=(
   "$core/references/standards/uml-2.5.1.md"
   "$core/references/standards/architecture.md"
   "$core/references/standards/erd.md"
+  "$core/references/standards/coverage-matrix.md"
 )
 
 for f in "${required[@]}"; do
@@ -62,6 +63,7 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-er.spec.yaml"
+  expect_fail "$core/tests/fixtures/invalid-strict-iso42010.spec.yaml"
 fi
 
 if command -v dot >/dev/null 2>&1; then

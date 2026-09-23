@@ -64,3 +64,10 @@ Stakeholder/concern evidence should come from requirements, documentation, ADRs,
 explicit user-provided project information, not inference from code.
 
 Presentation metadata controls appearance only and cannot add facts.
+
+
+## Conceptual ER participation
+
+For `conceptual-chen`, a participation edge may record
+`participation: total|partial` when source evidence supports that constraint. Do not
+invent participation merely to complete the notation.

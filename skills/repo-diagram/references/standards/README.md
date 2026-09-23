@@ -26,6 +26,9 @@ Repo Diagrammer distinguishes three source classes.
   covers E-R database design.
 - Martin Fowler, UML Distilled, 3rd ed. — practical UML subset and usage.
 - Booch, Rumbaugh, Jacobson, The Unified Modeling Language User Guide, 2nd ed.
+- UML-Diagrams.org — informative visual/index reference for UML 2.x notation;
+  never treated as more authoritative than the OMG specification.
+  https://www.uml-diagrams.org/
 - Simon Brown, Software Architecture for Developers — C4 practice.
 - Bass, Clements, Kazman, Software Architecture in Practice, 4th ed.
 - James Martin / Information Engineering notation is treated as the de-facto
@@ -41,3 +44,7 @@ Repo Diagrammer never auto-claims full conformance to UML or ISO 42010.
 
 Delivery wording must be “validated against the Repo Diagrammer documented subset of
 <standard>” rather than “fully compliant with <standard>”.
+
+
+See `coverage-matrix.md` before making a standards claim. It records what the plugin
+actually enforces and what remains outside the documented subset.
