@@ -24,6 +24,11 @@ question → repository evidence → semantic IR → view → type profile → r
 7. **Truth and presentation are independent quality gates.** A correct ugly/unreadable
    diagram is unfinished.
 8. **Never claim validation/review you could not actually perform.**
+9. **Standards claims are explicit and bounded.** Read `references/standards/`.
+   Use `practical` by default. If the user asks for OMG/UML/C4/ISO/Chen/Crow's Foot,
+   textbook, academic, thesis, or standards-grade output, switch the spec to
+   `conformance.mode: textbook-strict` and select the appropriate target(s).
+   The plugin may claim only its documented subset, never automatic full formal conformance.
 
 Keep real code identifiers visible. Write prose in the user's language.
 
@@ -86,10 +91,18 @@ targets, profile/type mismatches, and type-specific structural violations. If Py
 is unavailable, disclose that the mechanical spec gate was not run and perform the
 same checks in review.
 
-## Step 4 — Choose type + profile
+## Step 4 — Choose type + profile + conformance mode
 
 Use `references/diagram-types.md`. Then load the exact quality profile under
 `references/profiles/`.
+
+Choose conformance deliberately:
+- `practical`: default for normal engineering work;
+- `textbook-strict`: when the user asks for standards/textbook/thesis/formal notation.
+
+For textbook-strict, read `references/standards/README.md` plus the matching standard
+file. Select only targets relevant to the requested view. Do not add ISO 42010 metadata
+unless architecture-description alignment is actually requested.
 
 The profile defines:
 - required semantic facts;
@@ -149,6 +162,7 @@ Fix all Blocking findings before delivery.
 
 Deliver:
 - diagram source;
+- conformance mode and target(s), including the phrase "documented subset" for strict mode;
 - SVG/PNG when rendering is available/useful;
 - question/scope/type/commit;
 - selected profile and renderer;
@@ -175,3 +189,4 @@ For sets, include `model.spec.yaml` and an ordered README.
 - `repo-scout-procedure.md` — bounded exploration
 - `diagram-reviewer-procedure.md` — final quality gate
 - `research-basis.md` — standards/tooling basis
+- `standards/` — normative, academic, and textbook sources plus strict subset contracts

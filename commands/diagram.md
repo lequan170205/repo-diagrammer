@@ -10,7 +10,9 @@ Do not shortcut:
 1. locate/map;
 2. extract deterministic facts;
 3. build evidence IR;
-4. choose type + matching profile;
+4. choose type + matching profile + conformance mode; if the request says standards,
+   textbook, OMG/UML, C4, ISO, Chen/Crow's Foot, thesis, or academic, use
+   textbook-strict and load the matching references under standards/;
 5. choose renderer from the strategy matrix;
 6. render and visually inspect at 100%;
 7. run source-backed reviewer;

@@ -19,6 +19,10 @@ required=(
   "$core/references/profiles/callgraph.md"
   "$core/references/profiles/usecase.md"
   "$core/references/profiles/flowchart.md"
+  "$core/references/standards/README.md"
+  "$core/references/standards/uml-2.5.1.md"
+  "$core/references/standards/architecture.md"
+  "$core/references/standards/erd.md"
 )
 
 for f in "${required[@]}"; do
@@ -30,10 +34,14 @@ python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-sequence.spec.yaml" >/dev/null
-  if python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/invalid-missing-evidence.spec.yaml" >/dev/null 2>&1; then
-    echo "invalid spec fixture unexpectedly passed" >&2
-    exit 1
-  fi
+  python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-strict-usecase.spec.yaml" >/dev/null
+  python3 "$core/scripts/validate_spec.py" "$core/tests/fixtures/valid-strict-c4.spec.yaml" >/dev/null
+  for bad in     "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"     "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"     "$core/tests/fixtures/invalid-strict-er.spec.yaml"; do
+    if python3 "$core/scripts/validate_spec.py" "$bad" >/dev/null 2>&1; then
+      echo "invalid spec fixture unexpectedly passed: $bad" >&2
+      exit 1
+    fi
+  done
 fi
 
 if command -v dot >/dev/null 2>&1; then
@@ -49,5 +57,7 @@ grep -q "semantic-ir.md" "$core/SKILL.md"
 grep -q "renderer-strategy.md" "$core/SKILL.md"
 grep -q "validate_spec.py" "$core/SKILL.md"
 grep -q "visual review" "$core/references/diagram-reviewer-procedure.md"
+grep -q "textbook-strict" "$core/SKILL.md"
+grep -q "documented-subset" "$core/references/standards/README.md"
 
 echo "repo-diagrammer self-test: PASS"

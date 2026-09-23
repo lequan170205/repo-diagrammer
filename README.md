@@ -77,6 +77,26 @@ The plugin does not force Mermaid onto every problem.
 
 Fallbacks are allowed only when they preserve semantics.
 
+## Conformance modes
+
+**practical** is the default: source-backed, senior-engineering diagrams using a
+curated subset of each notation.
+
+**textbook-strict** is selected when the request explicitly asks for OMG/UML, C4,
+ISO 42010, Chen/Crow's Foot, textbook, academic, thesis, or standards-grade output.
+It loads the matching files under `references/standards/` and runs mechanical
+semantic checks.
+
+Strict mode deliberately claims only a **documented subset**. The plugin never
+auto-labels its output "fully UML compliant" or "fully ISO 42010 conformant".
+
+Current standards targets:
+- OMG UML 2.5.1 — Use Case, Sequence/Interaction, and Class subset;
+- C4 Model — architecture abstraction and notation/review rules;
+- ISO/IEC/IEEE 42010:2022 — architecture-description alignment subset;
+- Chen 1976 — conceptual ER;
+- Information Engineering / Crow's Foot — logical/physical ER.
+
 ## Quality gates
 
 ### Truth
@@ -201,6 +221,7 @@ repo-diagrammer/
 │   │   │   ├── semantic-ir.md
 │   │   │   ├── renderer-strategy.md
 │   │   │   ├── profiles/
+│   │   │   ├── standards/
 │   │   │   ├── layout-quality.md
 │   │   │   └── high-level-architecture-style.md
 │   │   └── scripts/
@@ -219,10 +240,11 @@ repo-diagrammer/
 
 ## Design basis
 
-The workflow is influenced by the C4 model's abstraction/notation/review discipline,
-Structurizr's “single model, multiple views” approach, and renderer-specific strengths
-from Mermaid, PlantUML, and Graphviz. See
-`skills/repo-diagram/references/research-basis.md`.
+The workflow distinguishes normative standards (OMG UML 2.5.1, ISO/IEC/IEEE
+42010:2022), the canonical C4 model, academic ER foundations (Chen 1976), textbook
+practice, and renderer-specific syntax. See
+`skills/repo-diagram/references/research-basis.md` and
+`skills/repo-diagram/references/standards/`.
 
 ## Limitations
 
