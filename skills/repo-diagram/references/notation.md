@@ -159,8 +159,8 @@ Relationships — the arrowhead points at the **parent/target**, a frequent erro
 
 | Syntax | Meaning |
 |---|---|
-| `Parent <|-- Child` | inheritance |
-| `Interface <|.. Impl` | realization |
+| `Parent <\|-- Child` | inheritance |
+| `Interface <\|.. Impl` | realization |
 | `Whole *-- Part` | composition (part dies with whole) |
 | `Whole o-- Part` | aggregation (part survives) |
 | `A --> B` | association |
@@ -194,10 +194,10 @@ Cardinality, read the side nearest the entity:
 
 | Symbol | Meaning |
 |---|---|
-| `|o` / `o|` | zero or one |
-| `||` | exactly one |
+| `\|o` / `o\|` | zero or one |
+| `\|\|` | exactly one |
 | `}o` / `o{` | zero or more |
-| `}|` / `|{` | one or more |
+| `}\|` / `\|{` | one or more |
 
 `--` identifying, `..` non-identifying.
 
