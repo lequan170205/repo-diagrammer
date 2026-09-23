@@ -468,6 +468,105 @@ if mode == "textbook-strict":
                 if er_mode == "physical-crows-foot" and edge.get("identifying") not in {True, False}:
                     errors.append(f"edges[{i}].identifying: physical Crow's Foot requires true/false")
 
+
+# Practical polished-overview projection invariants.
+if mode == "practical" and expected_profile == "architecture" and presentation.get("style") == "polished-overview":
+    projection = presentation.get("projection") or {}
+    if not isinstance(projection, dict) or projection.get("enabled") is not True:
+        errors.append("presentation.projection.enabled: practical polished-overview requires an explicit simplified projection")
+    else:
+        composites = projection.get("composites") or []
+        visible_nodes = projection.get("visible_nodes") or []
+        visible_edges = projection.get("visible_edges") or []
+        if not isinstance(composites, list):
+            errors.append("presentation.projection.composites: must be a list")
+            composites = []
+        if not isinstance(visible_nodes, list):
+            errors.append("presentation.projection.visible_nodes: must be a list")
+            visible_nodes = []
+        if not isinstance(visible_edges, list):
+            errors.append("presentation.projection.visible_edges: must be a list")
+            visible_edges = []
+
+        composite_ids = set()
+        composite_members = {}
+        seen_members = set()
+        for i, comp in enumerate(composites):
+            prefix = f"presentation.projection.composites[{i}]"
+            if not isinstance(comp, dict):
+                errors.append(f"{prefix}: must be a mapping")
+                continue
+            cid = str(comp.get("id") or "").strip()
+            if not cid:
+                errors.append(f"{prefix}.id: required")
+                continue
+            if cid in node_ids or cid in composite_ids:
+                errors.append(f"{prefix}.id: must be unique and not collide with model node ids")
+            composite_ids.add(cid)
+            members = comp.get("members") or []
+            if not isinstance(members, list) or len(members) < 2:
+                errors.append(f"{prefix}.members: practical composite requires at least two real model nodes")
+                members = []
+            for member in members:
+                if member not in node_ids:
+                    errors.append(f"{prefix}.members: unknown model node {member!r}")
+                if member in seen_members:
+                    errors.append(f"{prefix}.members: model node {member!r} appears in more than one composite")
+                seen_members.add(member)
+            composite_members[cid] = set(members)
+
+        valid_visible = node_ids | composite_ids
+        for vid in visible_nodes:
+            if vid not in valid_visible:
+                errors.append(f"presentation.projection.visible_nodes: unknown visible id {vid!r}")
+        if len(visible_nodes) > 10:
+            errors.append(f"presentation.projection.visible_nodes: practical overview has {len(visible_nodes)} visible regions; target is <=10")
+        if len(visible_edges) > 14:
+            errors.append(f"presentation.projection.visible_edges: practical overview has {len(visible_edges)} visible relationships; target is <=14")
+
+        model_edge_by_id = {e.get("id"): e for e in edges if isinstance(e, dict) and e.get("id")}
+        def underlying(endpoint):
+            if endpoint in composite_members:
+                return composite_members[endpoint]
+            if endpoint in node_ids:
+                return {endpoint}
+            return set()
+
+        for i, vedge in enumerate(visible_edges):
+            prefix = f"presentation.projection.visible_edges[{i}]"
+            if not isinstance(vedge, dict):
+                errors.append(f"{prefix}: must be a mapping")
+                continue
+            src, dst = vedge.get("from"), vedge.get("to")
+            if src not in visible_nodes or dst not in visible_nodes:
+                errors.append(f"{prefix}: endpoints must both appear in visible_nodes")
+            basis = vedge.get("basis_edges") or []
+            if not isinstance(basis, list) or not basis:
+                errors.append(f"{prefix}.basis_edges: projected edge requires at least one model edge")
+                continue
+            src_set, dst_set = underlying(src), underlying(dst)
+            for eid in basis:
+                model_edge = model_edge_by_id.get(eid)
+                if not model_edge:
+                    errors.append(f"{prefix}.basis_edges: unknown model edge {eid!r}")
+                    continue
+                if model_edge.get("from") not in src_set or model_edge.get("to") not in dst_set:
+                    errors.append(
+                        f"{prefix}.basis_edges: model edge {eid!r} does not preserve projected direction {src!r}->{dst!r}"
+                    )
+
+        regions = (doc.get("layout") or {}).get("regions") or {}
+        if not isinstance(regions, dict):
+            errors.append("layout.regions: practical polished-overview requires region mapping")
+        else:
+            placed = []
+            for ids in regions.values():
+                if isinstance(ids, list):
+                    placed.extend(ids)
+            for vid in visible_nodes:
+                if placed.count(vid) != 1:
+                    errors.append(f"layout.regions: visible id {vid!r} must appear in exactly one region")
+
 print(
     f"SPEC CHECK: {path.name} — {len(nodes)} nodes, {len(edges)} relations, "
     f"{len(boundaries)} boundaries — mode={mode}"

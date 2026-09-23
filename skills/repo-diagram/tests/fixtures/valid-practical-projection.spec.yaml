@@ -1,0 +1,108 @@
+question: "Practical backend overview"
+type: c4-container
+audience: stakeholder
+scope: demo
+commit: test
+conformance:
+  mode: practical
+  targets: []
+  claim: documented-subset
+nodes:
+  - id: clients
+    label: Clients
+    kind: external
+    responsibility: Uses backend
+    evidence: ["nginx.conf:1"]
+  - id: nginx
+    label: nginx
+    kind: container
+    responsibility: Ingress
+    evidence: ["nginx.conf:10"]
+  - id: conversation
+    label: conversation-service
+    kind: container
+    responsibility: Chat
+    evidence: ["docker-compose.yml:20"]
+  - id: call
+    label: call-service
+    kind: container
+    responsibility: Calls
+    evidence: ["docker-compose.yml:30"]
+edges:
+  - id: clients_nginx
+    from: clients
+    to: nginx
+    relation: calls
+    label: HTTPS
+    protocol: HTTPS
+    sync: true
+    crosses_network: true
+    evidence: ["nginx.conf:1"]
+  - id: nginx_chat
+    from: nginx
+    to: conversation
+    relation: routes-to
+    label: Chat Socket.IO
+    protocol: WebSocket
+    sync: true
+    crosses_network: true
+    evidence: ["nginx.conf:20"]
+  - id: nginx_call
+    from: nginx
+    to: call
+    relation: routes-to
+    label: Call Socket.IO
+    protocol: WebSocket
+    sync: true
+    crosses_network: true
+    evidence: ["nginx.conf:30"]
+interaction_fragments: []
+boundaries: []
+architecture_description: {}
+view:
+  profile: architecture
+  renderer: graphviz
+  fallback_renderer: mermaid
+  options: {}
+presentation:
+  style: polished-overview
+  title: Demo
+  groups: []
+  projection:
+    enabled: true
+    visible_nodes: [clients, nginx, realtime]
+    composites:
+      - id: realtime
+        label: Realtime communication
+        members: [conversation, call]
+        responsibility: Chat and calls
+        semantic_role: realtime
+    visible_edges:
+      - id: p_clients_nginx
+        from: clients
+        to: nginx
+        label: HTTPS
+        protocol: HTTPS
+        style: sync
+        basis_edges: [clients_nginx]
+      - id: p_nginx_realtime
+        from: nginx
+        to: realtime
+        label: Socket.IO
+        protocol: WebSocket
+        style: sync
+        basis_edges: [nginx_chat, nginx_call]
+  legend:
+    show: true
+layout:
+  regions:
+    top: [clients]
+    ingress: [nginx]
+    core: [realtime]
+    messaging: []
+    support: []
+    bottom-left: []
+    bottom-center: []
+    bottom-right: []
+    right: []
+gaps: []

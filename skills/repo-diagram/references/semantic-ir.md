@@ -42,11 +42,17 @@ Optional relation metadata carries the facts a view may need:
 ## Views do not rewrite facts
 
 A view may select, suppress or visually group facts. It may not:
-- invent a node/relation;
+- invent a model node/relation;
 - reverse direction for prettier layout;
 - change relation semantics;
-- turn a presentation group into a real dependency target;
 - rename a canonical code identifier differently in another view.
+
+A practical presentation may additionally define **projection composites** and
+**projected edges**. These are view-only objects, not model facts:
+- a composite lists the real model node IDs it summarizes;
+- a projected edge lists the exact model `basis_edges` it summarizes;
+- projected direction must match every basis edge;
+- projection never deletes or rewrites the underlying evidence model.
 
 Abstraction is a **view** concern. The model may contain classes, services, containers
 and deployment nodes simultaneously; one diagram must select one coherent level.

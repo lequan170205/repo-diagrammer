@@ -24,6 +24,7 @@ required=(
   "$core/references/standards/architecture.md"
   "$core/references/standards/erd.md"
   "$core/references/standards/coverage-matrix.md"
+  "$core/references/practical-architecture-compiler.md"
 )
 
 for f in "${required[@]}"; do
@@ -59,11 +60,13 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass "$core/tests/fixtures/valid-strict-class.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-chen.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-iso42010.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-practical-projection.spec.yaml"
 
   expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-er.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-iso42010.spec.yaml"
+  expect_fail "$core/tests/fixtures/invalid-practical-projection.spec.yaml"
 fi
 
 if command -v dot >/dev/null 2>&1; then

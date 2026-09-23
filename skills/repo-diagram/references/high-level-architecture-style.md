@@ -12,16 +12,24 @@ a monochrome engineering diagram, or a different visual language.
 
 The style is **presentation only**. The evidence spec remains the source of truth.
 
+For `conformance.mode: practical`, this style MUST be used together with
+`practical-architecture-compiler.md`. Practical mode is a simplified projection of
+the full evidence model, not the strict canvas with shorter labels.
+
 ## Non-negotiable traceability rules
 
 1. Every architectural node still needs evidence.
 2. Every architectural edge still needs evidence.
 3. A title, subtitle, legend or row hint is decoration, not an architectural claim.
-4. A presentation group may contain only evidenced nodes and may not receive edges.
-5. Never collapse several services into one visual box when doing so would make an
-   edge ambiguous. Keep the services as real nodes inside a presentation group.
-6. If a short display label differs from the identifier, render the exact identifier
-   somewhere in the node.
+4. A presentation group may contain only evidenced nodes and may not receive model
+   edges.
+5. In practical mode, a **projection composite** may visually summarize multiple real
+   nodes. It is allowed to receive projected edges only when every projected edge lists
+   the exact `basis_edges` from the evidence model.
+6. Never collapse several services in the evidence model itself. Simplification occurs
+   only in the presentation projection.
+7. If a short display label differs from an identifier, keep the exact member
+   identifiers visible in the card body or evidence companion.
 
 The rule is: **beautify the evidence; never beautify by inventing or blurring it.**
 
@@ -171,7 +179,8 @@ A polished overview should feel like a technical architecture poster:
 - whitespace between regions, not inside labels.
 
 A source-correct diagram that looks like raw auto-layout should be iterated before
-delivery.
+delivery. In practical mode, also fail the render when it exposes too much model
+detail: dense correctness is not practical readability.
 
 ## Required review loop
 

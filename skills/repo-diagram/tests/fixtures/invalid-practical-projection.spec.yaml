@@ -1,0 +1,57 @@
+question: "Broken practical"
+type: c4-container
+conformance:
+  mode: practical
+  targets: []
+  claim: documented-subset
+nodes:
+  - id: a
+    label: A
+    kind: container
+    evidence: ["a.ts:1"]
+  - id: b
+    label: B
+    kind: container
+    evidence: ["b.ts:1"]
+  - id: c
+    label: C
+    kind: container
+    evidence: ["c.ts:1"]
+edges:
+  - id: ab
+    from: a
+    to: b
+    relation: calls
+    label: calls
+    protocol: HTTP
+    sync: true
+    crosses_network: true
+    evidence: ["a.ts:2"]
+interaction_fragments: []
+boundaries: []
+architecture_description: {}
+view:
+  profile: architecture
+  renderer: graphviz
+  fallback_renderer: mermaid
+  options: {}
+presentation:
+  style: polished-overview
+  groups: []
+  projection:
+    enabled: true
+    visible_nodes: [a, comp]
+    composites:
+      - id: comp
+        label: BC
+        members: [b, c]
+    visible_edges:
+      - id: wrong
+        from: comp
+        to: a
+        basis_edges: [ab]
+layout:
+  regions:
+    top: [a]
+    core: [comp]
+gaps: []

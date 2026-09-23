@@ -62,6 +62,8 @@ Apply both `layout-quality.md` and the selected type profile.
 
 Blocking VISUAL examples:
 - architecture: raw auto-layout, mixed hierarchy, missing relation legend/protocol;
+  practical architecture also fails for >10 normal visual regions, >14 arrows,
+  service-level spider web, or projection edges without traceable basis;
 - sequence: async indistinguishable, participant order causes constant backtracking;
 - class: hierarchy unreadable, member dump dominates;
 - ER: cardinalities/keys unreadable, central model lost;
@@ -73,6 +75,10 @@ Blocking VISUAL examples:
 - flowchart/swimlane: decisions or ownership handoffs unclear.
 
 High-level architecture additionally loads `high-level-architecture-style.md`.
+For practical high-level architecture, also load
+`practical-architecture-compiler.md` and review **information density**, not only
+aesthetics. A diagram can be source-correct and still fail because it exposes too many
+nodes/edges for the question.
 
 If no renderer is available, visual review is UNVERIFIED.
 
