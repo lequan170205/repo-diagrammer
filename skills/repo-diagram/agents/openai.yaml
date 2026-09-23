@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Diagram"
+  short_description: "Evidence-backed diagrams from code"
+  default_prompt: "Use $repo-diagram to inspect this repository and create an accurate, evidence-backed diagram."
