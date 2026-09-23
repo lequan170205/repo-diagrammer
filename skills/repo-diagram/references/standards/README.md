@@ -37,6 +37,7 @@ Repo Diagrammer never auto-claims full conformance to UML or ISO 42010.
 
 - practical: senior-engineering subset; source-traceable and presentation-reviewed.
 - textbook-strict: mechanically enforces the documented subset in this directory.
+- machine-readable claim value: `claim: documented-subset`.
 
 Delivery wording must be “validated against the Repo Diagrammer documented subset of
 <standard>” rather than “fully compliant with <standard>”.

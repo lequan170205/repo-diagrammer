@@ -54,6 +54,10 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass "$core/tests/fixtures/valid-sequence.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-usecase.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-c4.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-sequence.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-class.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-chen.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-strict-iso42010.spec.yaml"
 
   expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"
