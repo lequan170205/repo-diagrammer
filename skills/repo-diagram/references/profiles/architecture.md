@@ -34,12 +34,30 @@ This is documented alignment, not an automatic full-conformance claim.
 
 ## Presentation contract
 
-Context: system of interest visually dominant. Container/high-level views use the
-polished-overview style when appropriate. Component views keep the owning container
-boundary obvious. External systems stay peripheral.
+Context: system of interest visually dominant.
+
+For high-level/container views:
+- `textbook-strict` renders explicit C4 elements and relationships required by the
+  documented subset;
+- `practical` uses `practical-architecture-compiler.md` to project the same
+  evidence model into 6–10 visual regions with primary relationships only.
+
+Practical mode should normally group data stores, external providers, observability
+tools and tightly related service families into composite cards. It must not render a
+service-level spider web merely because every relation exists in the model.
+
+Component views keep the owning container boundary obvious. External systems stay peripheral.
 
 ## Blocking
 
 Mixed abstraction; unlabelled relation; missing protocol; false boundary; missing C4
-legend/type/responsibility in strict mode; cross-view renaming; bad ISO metadata
-references; static/runtime/deployment concerns crammed into one view.
+legend/type/responsibility in strict mode; cross-view renaming; bad ISO metadata;
+static/runtime/deployment concerns crammed into one view.
+
+Practical-only Blocking defects:
+- >10 visible regions for a normal overview without a compelling reason;
+- >14 visible arrows;
+- model-level service spider web instead of projection;
+- projection edge without basis_edges;
+- composite that hides member identity;
+- fallback renderer that destroys poster composition.

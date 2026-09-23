@@ -5,6 +5,7 @@ change the meaning of a diagram to fit a renderer.
 
 | Diagram | Preferred | Fallback |
 |---|---|---|
+| Practical high-level architecture | Built-in poster renderer from spec | Mermaid + ELK only if poster composition is preserved |
 | C4 landscape/context/container/component | Mermaid flowchart + ELK | PlantUML / Graphviz preview |
 | C4 dynamic | Mermaid sequence | PlantUML sequence |
 | Sequence | Mermaid simple; PlantUML complex | the other |
