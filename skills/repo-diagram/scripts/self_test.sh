@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate_spec.py" "$core/scripts/render_practical_architecture.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -61,6 +61,10 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass "$core/tests/fixtures/valid-strict-chen.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-iso42010.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-practical-projection.spec.yaml"
+  tmp_poster="$(mktemp -d)"
+  python3 "$core/scripts/render_practical_architecture.py"     "$core/tests/fixtures/valid-practical-projection.spec.yaml"     "$tmp_poster/poster.svg"
+  grep -q "<svg" "$tmp_poster/poster.svg"
+  rm -rf "$tmp_poster"
 
   expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"

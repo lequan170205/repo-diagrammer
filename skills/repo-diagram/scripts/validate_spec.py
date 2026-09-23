@@ -516,6 +516,14 @@ if mode == "practical" and expected_profile == "architecture" and presentation.g
             composite_members[cid] = set(members)
 
         valid_visible = node_ids | composite_ids
+        copy_map = projection.get("copy") or {}
+        if not isinstance(copy_map, dict):
+            errors.append("presentation.projection.copy: must be a mapping keyed by visible real-node id")
+            copy_map = {}
+        for copy_id in copy_map:
+            if copy_id not in node_ids or copy_id not in visible_nodes:
+                errors.append(f"presentation.projection.copy: {copy_id!r} must reference a visible real model node")
+
         for vid in visible_nodes:
             if vid not in valid_visible:
                 errors.append(f"presentation.projection.visible_nodes: unknown visible id {vid!r}")

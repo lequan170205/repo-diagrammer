@@ -157,7 +157,17 @@ Every visible projection node should appear in exactly one region.
 
 ## Renderer fidelity
 
-For `polished-overview`, fallback rendering must preserve the planned composition,
+Preferred renderer for practical high-level architecture is the built-in deterministic
+poster renderer:
+
+```bash
+python3 scripts/render_practical_architecture.py <spec.yaml> <output.svg> [--png output.png]
+```
+
+It reads `presentation.projection` and `layout.regions` directly, so the same
+evidence-backed view gets the same poster hierarchy across runs.
+
+For `polished-overview`, any fallback rendering must preserve the planned composition,
 not only semantic truth.
 
 A fallback is **rejected** when it loses:

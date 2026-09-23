@@ -105,6 +105,7 @@ presentation:
   projection:
     enabled: false
     visible_nodes: []   # real node ids and/or composite ids
+    copy: {}             # optional concise card copy keyed by visible real-node id
     composites:
       - id: ""
         label: ""

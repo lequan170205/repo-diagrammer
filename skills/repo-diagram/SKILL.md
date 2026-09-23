@@ -138,7 +138,13 @@ Then plan layout:
 
 ## Step 6 — Render and visual-review
 
-For source files:
+For practical polished high-level architecture, render directly from the spec:
+
+```bash
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_practical_architecture.py" path/to/<slug>.spec.yaml path/to/<slug>.svg --png path/to/<slug>.png
+```
+
+For other source files:
 ```bash
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.mmd
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.puml
