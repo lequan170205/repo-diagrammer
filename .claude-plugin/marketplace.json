@@ -1,0 +1,11 @@
+{
+  "name": "repo-diagrammer-marketplace",
+  "owner": { "name": "repo-diagrammer" },
+  "plugins": [
+    {
+      "name": "repo-diagrammer",
+      "source": "./",
+      "description": "Codebase to accurate diagrams: feature-scoped, evidence-backed, render-validated."
+    }
+  ]
+}
