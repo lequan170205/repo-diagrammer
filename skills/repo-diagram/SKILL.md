@@ -96,7 +96,7 @@ It prints languages, layout, manifests, entrypoints, route files, schemas, infra
 files and the biggest source files. Read its output before opening any source file.
 
 **On a large repo, delegate when the host supports isolated subagents.** Use the
-`repo-scout` procedure in the plugin-root `agents/repo-scout.md` with the feature
+`repo-scout` procedure in `references/repo-scout-procedure.md` with the feature
 keywords and diagram type. In Claude Code this can be the `repo-scout` Task
 subagent; in Codex use the available multi-agent/subagent tooling when enabled. If
 the host exposes no isolated subagent tool, perform the same bounded scout procedure
@@ -211,7 +211,7 @@ If neither renderer is available, say so in the delivery. Do not claim validatio
 did not do.
 
 Then the tech-lead pass. On anything non-trivial, apply the review procedure from
-the plugin-root `agents/diagram-reviewer.md`. When isolated subagent tooling is
+`references/diagram-reviewer-procedure.md`. When isolated subagent tooling is
 available, run that review in a clean context (Claude Code: the `diagram-reviewer`
 Task subagent; Codex: available multi-agent/subagent tooling). If not, run the same
 procedure inline. Fix everything it marks Blocking before delivering:
@@ -274,6 +274,8 @@ produces a reviewable diff.
 - `references/extraction.md` — static-analysis recipes per language
 - `references/notation.md` — Mermaid/PlantUML syntax, parser traps, C4 template
 - `references/layout-quality.md` — what makes a diagram readable
+- `references/repo-scout-procedure.md` — bounded repository exploration procedure
+- `references/diagram-reviewer-procedure.md` — source-backed tech-lead review procedure
 - `assets/spec.template.yaml` — the intermediate spec
 
 ## Scripts
