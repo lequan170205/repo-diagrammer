@@ -1,0 +1,31 @@
+name: diagrammer-self-test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight validation dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      - name: Run Repo Diagrammer self-test
+        run: bash skills/repo-diagram/scripts/self_test.sh

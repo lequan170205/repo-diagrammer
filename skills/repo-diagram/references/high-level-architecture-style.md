@@ -7,10 +7,10 @@ This profile exists for requests such as:
 - "system overview"
 - "vẽ kiến trúc backend"
 
-Use it as the default presentation profile unless the user explicitly asks for raw C4,
+Use it as the default presentation style unless the user explicitly asks for raw C4,
 a monochrome engineering diagram, or a different visual language.
 
-The profile is **presentation only**. The evidence spec remains the source of truth.
+The style is **presentation only**. The evidence spec remains the source of truth.
 
 ## Non-negotiable traceability rules
 
@@ -175,7 +175,7 @@ delivery.
 
 ## Required review loop
 
-For `polished-overview`:
+For `presentation.style: polished-overview`:
 
 1. Render.
 2. Inspect at 100%.
