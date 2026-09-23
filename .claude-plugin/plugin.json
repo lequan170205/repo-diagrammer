@@ -1,0 +1,8 @@
+{
+  "name": "repo-diagrammer",
+  "version": "1.0.0",
+  "description": "Read a real codebase and draw evidence-backed diagrams of any feature: C4 context/container/component, sequence, class, ER, state, dataflow, deployment, call graph, use case. Deterministic extraction where possible, render-validated output, tech-lead review pass.",
+  "author": { "name": "repo-diagrammer" },
+  "license": "MIT",
+  "keywords": ["diagram", "architecture", "c4", "mermaid", "uml", "codebase-analysis", "sequence-diagram", "erd"]
+}
