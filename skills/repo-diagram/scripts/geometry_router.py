@@ -106,7 +106,7 @@ def route_score(points, sid, tid, boxes, existing_routes):
     return obstacles*1_000_000 + crossings*100_000 + overlaps*500 + bends*25 + length
 
 
-def _same_row_candidates(sbox,tbox,canvas_w,lane_index=0):
+def _same_row_candidates(sbox,tbox,canvas_w,lane_index=0,source_slot=0.0,target_slot=0.0):
     sx,sy,sw,sh=sbox
     tx,ty,tw,th=tbox
     scx,_=center(sbox)
@@ -114,8 +114,8 @@ def _same_row_candidates(sbox,tbox,canvas_w,lane_index=0):
     rightward=tcx>=scx
     x1=sx+sw if rightward else sx
     x2=tx if rightward else tx+tw
-    y1=sy+sh/2
-    y2=ty+th/2
+    y1=sy+sh/2 + source_slot*sh*0.32
+    y2=ty+th/2 + target_slot*th*0.32
     lift_base=30+lane_index*10
     candidates=[]
     for sign in (-1,1):
@@ -129,13 +129,13 @@ def _same_row_candidates(sbox,tbox,canvas_w,lane_index=0):
     return [compress(x) for x in candidates]
 
 
-def _cross_row_candidates(sbox,tbox,canvas_w,lane_index=0):
+def _cross_row_candidates(sbox,tbox,canvas_w,lane_index=0,source_slot=0.0,target_slot=0.0):
     sx,sy,sw,sh=sbox
     tx,ty,tw,th=tbox
     downward=ty>=sy
-    x1=sx+sw/2
+    x1=sx+sw/2 + source_slot*sw*0.34
     y1=sy+sh if downward else sy
-    x2=tx+tw/2
+    x2=tx+tw/2 + target_slot*tw*0.34
     y2=ty if downward else ty+th
     lo,hi=sorted((y1,y2))
     candidates=[]
@@ -151,13 +151,17 @@ def _cross_row_candidates(sbox,tbox,canvas_w,lane_index=0):
     return [compress(x) for x in candidates]
 
 
-def route_edge(boxes,row_index,sid,tid,canvas_w,existing_routes,lane_index=0):
+def route_edge(boxes,row_index,sid,tid,canvas_w,existing_routes,lane_index=0,source_slot=0.0,target_slot=0.0):
     if sid not in boxes or tid not in boxes:
         return []
     if row_index[sid]==row_index[tid]:
-        candidates=_same_row_candidates(boxes[sid],boxes[tid],canvas_w,lane_index)
+        candidates=_same_row_candidates(
+            boxes[sid],boxes[tid],canvas_w,lane_index,source_slot,target_slot
+        )
     else:
-        candidates=_cross_row_candidates(boxes[sid],boxes[tid],canvas_w,lane_index)
+        candidates=_cross_row_candidates(
+            boxes[sid],boxes[tid],canvas_w,lane_index,source_slot,target_slot
+        )
     return min(candidates,key=lambda p: route_score(p,sid,tid,boxes,existing_routes))
 
 
