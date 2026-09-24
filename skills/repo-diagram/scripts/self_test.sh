@@ -69,6 +69,17 @@ fi
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   tmp_visual="$(mktemp -d)"
+
+  visual_expect_pass() {
+    local svg="$1"
+    local output
+    shift
+    if ! output="$(python3 "$core/scripts/visual_analyze_svg.py" "$svg" --strict "$@" 2>&1)"; then
+      echo "expected visual pass failed: $svg" >&2
+      echo "$output" >&2
+      exit 1
+    fi
+  }
   cat > "$tmp_visual/architecture.spec.yaml" <<'YAML'
 question: smoke
 type: c4-container
@@ -90,7 +101,7 @@ layout:
   crossing_target: 0
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
-  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/architecture.svg" --strict --max-crossings 0 >/dev/null
+  visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
 
   cat > "$tmp_visual/same-row.spec.yaml" <<'YAML'
 question: same-row routing
@@ -110,7 +121,7 @@ layout:
   crossing_target: 0
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" >/dev/null
-  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/same-row.svg" --strict --max-crossings 0 >/dev/null
+  visual_expect_pass "$tmp_visual/same-row.svg" --max-crossings 0
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
 
   cat > "$tmp_visual/regions.spec.yaml" <<'YAML'
@@ -135,7 +146,7 @@ layout:
   crossing_target: 0
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/regions.spec.yaml" "$tmp_visual/regions.svg" >/dev/null
-  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/regions.svg" --strict --max-crossings 0 >/dev/null
+  visual_expect_pass "$tmp_visual/regions.svg" --max-crossings 0
   grep -q 'data-region-kind="boundary"' "$tmp_visual/regions.svg"
   grep -q 'data-region-kind="presentation"' "$tmp_visual/regions.svg"
 
