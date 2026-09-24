@@ -66,6 +66,15 @@ def main():
     ap.add_argument("--split-dir", type=Path, default=None)
     args = ap.parse_args()
 
+    script_dir = Path(__file__).resolve().parent
+    spec_validator = script_dir / "validate_spec.py"
+    validated_spec = run([sys.executable, str(spec_validator), str(args.spec)])
+    if validated_spec.returncode != 0:
+        print(validated_spec.stdout, end="")
+        print(validated_spec.stderr, end="", file=sys.stderr)
+        print("POLISHED RENDER STOP: source spec failed semantic/type validation.", file=sys.stderr)
+        return validated_spec.returncode
+
     doc = yaml.safe_load(args.spec.read_text(encoding="utf-8")) or {}
     layout = doc.get("layout") or {}
     crossing_target = int(layout.get("crossing_target", 0) or 0)
@@ -82,8 +91,6 @@ def main():
     detail_nodes = int(auto_split_cfg.get("detail_nodes", DEFAULT_DETAIL_NODES) or DEFAULT_DETAIL_NODES)
     overview_nodes = int(auto_split_cfg.get("overview_nodes", DEFAULT_OVERVIEW_NODES) or DEFAULT_OVERVIEW_NODES)
     context_nodes = int(auto_split_cfg.get("context_nodes", DEFAULT_CONTEXT_NODES) or DEFAULT_CONTEXT_NODES)
-
-    script_dir = Path(__file__).resolve().parent
 
     if enabled and not args.no_auto_split:
         needs_split, reasons, metrics = should_split(doc, max_nodes=max_nodes)
