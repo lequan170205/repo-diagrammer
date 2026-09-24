@@ -316,9 +316,13 @@ def main():
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w:.0f}" height="{canvas_h:.0f}" '
                f'viewBox="0 0 {canvas_w:.0f} {canvas_h:.0f}" role="img" '
+               f'aria-labelledby="diagram-svg-title diagram-svg-desc" '
                f'data-layout-variant="{args.layout_variant % 4}" '
                f'data-routing-variant="{args.routing_variant % 4}" '
                f'data-estimated-crossings="{layout_metrics.get("estimated_crossings", 0)}">')
+    out.append(f'<title id="diagram-svg-title">{esc(title)}</title>')
+    diagram_desc = subtitle or str(doc.get("scope") or "Architecture diagram")
+    out.append(f'<desc id="diagram-svg-desc">{esc(diagram_desc)}</desc>')
     out.append('<defs>'
                '<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
                '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker>'
@@ -473,8 +477,13 @@ def main():
         stroke_width = "2.8" if primary else "1.7"
         marker = "arrow-primary" if primary else "arrow"
         primary_attr = ' data-primary="true"' if primary else ""
+        sync_value = "false" if dashed else "true"
+        relation = str(e.get("relation") or "relation")
+        edge_label = str(e.get("label") or e.get("protocol") or relation)
+        edge_accessible = f"{sid} to {tid}: {edge_label}; {'async' if dashed else 'sync'}"
         out.append(f'<g class="edge" data-edge-id="{esc(eid)}" data-source-id="{esc(sid)}" '
-                   f'data-target-id="{esc(tid)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
+                   f'data-target-id="{esc(tid)}" data-sync="{sync_value}" role="img" '
+                   f'aria-label="{esc(edge_accessible)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
                    f'stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})"/></g>')
 
     # Phase 3: place labels against the complete edge set.
@@ -513,9 +522,19 @@ def main():
         stroke_opacity = "0.65" if is_context else "1"
         dash = ' stroke-dasharray="5 4"' if is_context else ""
         lines = node_lines(node, w, text_width_scale)
+        node_label = str(node.get("display_label") or node.get("label") or nid)
+        node_tech = str(node.get("tech") or "").strip()
+        node_resp = str(node.get("responsibility") or "").strip()
+        accessible_parts = [node_label, f"role {role}"]
+        if node_tech:
+            accessible_parts.append(node_tech)
+        if node_resp:
+            accessible_parts.append(node_resp)
+        node_accessible = "; ".join(accessible_parts)
         out.append(
-            f'<g class="node" data-node-id="{esc(nid)}" '
-            f'data-row-index="{row_index[nid]}" data-visual-scope="{visual_scope}">'
+            f'<g class="node" data-node-id="{esc(nid)}" data-node-role="{esc(role)}" '
+            f'data-row-index="{row_index[nid]}" data-visual-scope="{visual_scope}" '
+            f'role="group" aria-label="{esc(node_accessible)}">'
             f'<rect x="{x:.1f}" y="{yy:.1f}" width="{w:.1f}" height="{h:.1f}" '
             f'rx="12" fill="{fill}" fill-opacity="{fill_opacity}" stroke="{stroke}" '
             f'stroke-opacity="{stroke_opacity}" stroke-width="1.5"{dash}/>'
