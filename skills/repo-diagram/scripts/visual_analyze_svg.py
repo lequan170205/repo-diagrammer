@@ -31,6 +31,7 @@ class Box:
     w: float
     h: float
     confidence: str = "native"
+    owner: str = ""
 
     @property
     def left(self): return self.x
@@ -228,6 +229,10 @@ def extract(root):
         if label_id:
             b = rect_from_group(el, ox, oy, label_id, "native")
             if b:
+                b.owner = str(
+                    el.attrib.get("data-owner-edge-id")
+                    or (label_id[:-6] if label_id.endswith("-label") else "")
+                )
                 labels.append(b)
                 native = True
         edge_id = el.attrib.get("data-edge-id")
@@ -297,6 +302,47 @@ def segment_rect_cross(a, b, r: Box):
         return True
     q = [(r.left, r.top), (r.right, r.top), (r.right, r.bottom), (r.left, r.bottom)]
     return any(seg_intersect(a, b, q[i], q[(i+1) % 4]) for i in range(4))
+
+
+def segment_rect_distance(a, b, rect: Box):
+    """Minimum distance from an axis-aligned edge segment to a label box."""
+    if abs(a[0]-b[0]) < EPS:
+        xx = a[0]
+        sy0, sy1 = sorted((a[1], b[1]))
+        dx = 0.0 if rect.left <= xx <= rect.right else min(
+            abs(xx-rect.left), abs(xx-rect.right)
+        )
+        if sy1 < rect.top:
+            dy = rect.top-sy1
+        elif sy0 > rect.bottom:
+            dy = sy0-rect.bottom
+        else:
+            dy = 0.0
+        return math.hypot(dx, dy)
+    if abs(a[1]-b[1]) < EPS:
+        yy = a[1]
+        sx0, sx1 = sorted((a[0], b[0]))
+        dy = 0.0 if rect.top <= yy <= rect.bottom else min(
+            abs(yy-rect.top), abs(yy-rect.bottom)
+        )
+        if sx1 < rect.left:
+            dx = rect.left-sx1
+        elif sx0 > rect.right:
+            dx = sx0-rect.right
+        else:
+            dx = 0.0
+        return math.hypot(dx, dy)
+    center = (rect.x+rect.w/2, rect.y+rect.h/2)
+    return min(math.dist(center, a), math.dist(center, b))
+
+
+def route_rect_distance(points, rect: Box):
+    if len(points) < 2:
+        return float("inf")
+    return min(
+        segment_rect_distance(a, b, rect)
+        for a, b in zip(points, points[1:])
+    )
 
 
 def collinear_overlap(a, b, c, d):
@@ -437,12 +483,29 @@ def analyze(root, boxes, labels, regions, edges, native, strict_heuristic=False)
                     findings.append(Finding("warning", "TIGHT_NODE_GAP",
                                             f"nodes {a.id} and {b.id} are only {gap:.1f}px apart", [a.id, b.id]))
 
+    edge_by_id = {e.id: e for e in edges}
     for label in labels:
         for b in boxes:
             if overlap(label, b, 0):
                 findings.append(Finding(sev(), "LABEL_NODE_COLLISION",
                                         f"edge label {label.id} overlaps node {b.id}", [label.id, b.id]))
-        owner = label.id[:-6] if label.id.endswith("-label") else ""
+        owner = label.owner
+        owner_edge = edge_by_id.get(owner)
+        if owner_edge is None:
+            findings.append(Finding(
+                sev(), "LABEL_OWNER_EDGE_MISSING",
+                f"edge label {label.id} has no rendered owner edge {owner!r}",
+                [label.id]
+            ))
+        else:
+            distance = route_rect_distance(owner_edge.points, label)
+            if distance > 36:
+                findings.append(Finding(
+                    sev(), "LABEL_OWNER_DISTANCE",
+                    f"edge label {label.id} is {distance:.1f}px from owner edge {owner}; budget is 36px",
+                    [label.id, owner]
+                ))
+
         for e in edges:
             if e.id == owner:
                 continue
