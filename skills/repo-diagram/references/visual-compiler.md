@@ -56,7 +56,7 @@ Automatic splitting is semantics-preserving:
 
 - generated views reuse original node/edge IDs and evidence;
 - no synthetic subsystem/service nodes are invented;
-- the overview selects real primary/focus/high-degree nodes only;
+- the overview selects real primary/focus/high-degree nodes only, while reserving capacity for at least one real representative from every detail cluster whenever the overview budget can cover them all;
 - detail views contain a bounded core plus a few real one-hop context nodes;
 - semantic-role equality alone never justifies merging disconnected cores: clustering preserves source-graph connectivity and records per-view cohesion metrics;
 - if bounded context would leave source relations unrepresented, the planner adds bounded integration views containing only the real endpoints of those uncovered edges;
@@ -72,7 +72,7 @@ and no architecture elements were invented. Before any generated view is rendere
 `validate_split_set.py` requires generated nodes, edges and real boundaries to be
 verbatim source elements, protects immutable source/conformance metadata, verifies
 presentation groups are source-derived, validates focus/context classification,
-enforces per-view readability budgets and density thresholds recorded in the manifest, recomputes core connectivity/cohesion from the source graph, and requires 100%
+enforces per-view readability budgets and density thresholds recorded in the manifest, recomputes core connectivity/cohesion and overview cluster coverage from the source graph, and requires 100%
 source node/edge coverage across the generated set.
 
 `layout.auto_split` exposes `max_nodes`, `max_edges`, and `max_degree` independently, plus detail/overview/context node budgets. Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
