@@ -35,7 +35,8 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - geometry-aware label placement that avoids nodes, labels and unrelated edges;
 - distributed edge ports for high-degree nodes instead of one congested center port;
 - primary-path-first routing and emphasis when `view.primary_path` is supplied;
-- adaptive node height with wrapped responsibility copy;
+- adaptive node height with glyph-aware width estimation and wrapped responsibility copy;
+- adaptive canvas sizing to reduce dead whitespace on small views;
 - stable `data-node-id` and `data-edge-id` metadata for machine inspection.
 
 Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics are
@@ -61,7 +62,9 @@ The analyzer checks:
 - label/node, label/label and label/edge collisions;
 - extremely tight node gaps;
 - suspiciously long routes;
-- extreme canvas aspect ratios.
+- extreme canvas aspect ratios;
+- global horizontal imbalance, sparse composition and excess bottom whitespace;
+- region member containment, unrelated-node capture, header collisions and ambiguous region overlap.
 
 Native SVG metadata can produce Blocking findings. Third-party renderer DOMs are
 version-dependent, so Mermaid/Graphviz geometry is heuristic and warning-only by
@@ -103,3 +106,5 @@ For a polished high-level architecture diagram, delivery requires all three:
    subjective balance that geometry checks cannot fully measure.
 
 Machine checks reduce visual mistakes; they do not replace human/agent visual review.
+Composition findings are warnings by default because asymmetric architectures can be
+legitimate; region ambiguity and containment defects are Blocking for native output.

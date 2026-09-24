@@ -236,6 +236,7 @@ repo-diagrammer/
 │   │       ├── render_any.sh
 │   │       ├── render_architecture_svg.py
 │   │       ├── geometry_router.py
+│   │       ├── text_metrics.py
 │   │       ├── validate_spec.py
 │   │       ├── visual_lint_svg.py
 │   │       ├── visual_analyze_svg.py

@@ -44,4 +44,5 @@ Component views keep the owning container boundary obvious. External systems sta
 Mixed abstraction; unlabelled relation; missing protocol; false boundary; missing C4
 legend/type/responsibility in strict mode; cross-view renaming; bad ISO metadata
 references; static/runtime/deployment concerns crammed into one view; node overlap;
-edge through unrelated node; avoidable crossings above the declared budget.
+edge through unrelated node; avoidable crossings above the declared budget; region
+capture of unrelated nodes; ambiguous non-nested region overlap.

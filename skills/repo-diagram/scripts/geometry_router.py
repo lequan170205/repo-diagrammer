@@ -174,18 +174,24 @@ def box_overlap(a,b,pad=0.0):
 def label_candidates(points,w,h):
     candidates=[]
     segs=sorted(zip(points,points[1:]),key=lambda ab:math.dist(ab[0],ab[1]),reverse=True)
-    for a,b in segs[:4]:
-        mx,my=(a[0]+b[0])/2,(a[1]+b[1])/2
-        if abs(a[1]-b[1])<EPS:
-            candidates.extend([
-                (mx-w/2,my-h-6,w,h),
-                (mx-w/2,my+6,w,h),
-            ])
-        elif abs(a[0]-b[0])<EPS:
-            candidates.extend([
-                (mx+7,my-h/2,w,h),
-                (mx-w-7,my-h/2,w,h),
-            ])
+    # Midpoint-only placement is too brittle in dense diagrams. Sample several
+    # positions and several distances from each significant route segment.
+    for a,b in segs[:6]:
+        for frac in (0.25,0.5,0.75):
+            mx=a[0]+(b[0]-a[0])*frac
+            my=a[1]+(b[1]-a[1])*frac
+            if abs(a[1]-b[1])<EPS:
+                for offset in (6, h+10, 2*h+16):
+                    candidates.extend([
+                        (mx-w/2,my-h-offset,w,h),
+                        (mx-w/2,my+offset,w,h),
+                    ])
+            elif abs(a[0]-b[0])<EPS:
+                for offset in (7, w*0.35+10, w+14):
+                    candidates.extend([
+                        (mx+offset,my-h/2,w,h),
+                        (mx-w-offset,my-h/2,w,h),
+                    ])
     return candidates
 
 

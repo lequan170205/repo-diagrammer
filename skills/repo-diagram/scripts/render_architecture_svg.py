@@ -11,10 +11,10 @@ import argparse
 import html
 import math
 import sys
-import textwrap
 from pathlib import Path
 
 from geometry_router import place_label, route_edge
+from text_metrics import estimate_text_width, fit_font_size, wrap_text
 
 try:
     import yaml
@@ -53,23 +53,34 @@ def display_parts(n):
 
 
 def width_for(n):
-    longest = max([len(x) for x in display_parts(n)] or [10])
-    return max(160, min(320, 110+longest*5.2))
+    parts = display_parts(n)
+    if not parts:
+        return 160
+    title_w = estimate_text_width(parts[0], 13, "700") + 28
+    tech_w = estimate_text_width(parts[1], 10.5) + 28 if len(parts) > 1 else 0
+    # Responsibilities should wrap rather than forcing poster-width nodes.
+    responsibility_target = min(
+        300,
+        estimate_text_width(parts[2], 10.5) + 28 if len(parts) > 2 else 0,
+    )
+    return max(160, min(340, max(title_w, tech_w, responsibility_target, 160)))
 
 
 def node_lines(n, width):
     parts = display_parts(n)
     if not parts:
         return []
-    result = [("title", parts[0])]
-    char_budget = max(22, int((width-28)/5.6))
+    inner = max(40, width-28)
+    title_size = fit_font_size(parts[0], inner, 13, 9.5)
+    result = [("title", parts[0], title_size)]
     if len(parts) > 1:
-        result.append(("detail", parts[1]))
+        tech_size = fit_font_size(parts[1], inner, 10.5, 8.5)
+        result.append(("detail", parts[1], tech_size))
     if len(parts) > 2:
-        wrapped = textwrap.wrap(parts[2], width=char_budget, break_long_words=False,
-                                break_on_hyphens=False) or [parts[2]]
-        for line in wrapped[:3]:
-            result.append(("detail", line))
+        wrapped = wrap_text(parts[2], inner, 10.5, max_lines=3) or [parts[2]]
+        for line in wrapped:
+            size = fit_font_size(line, inner, 10.5, 8.5)
+            result.append(("detail", line, size))
     return result
 
 
@@ -174,7 +185,7 @@ def main():
         row_widths.append(sum(w for w, _ in dims)+node_gap*max(0, len(dims)-1))
         row_heights.append(max([h for _, h in dims] or [88]))
 
-    canvas_w = max(980, max(row_widths, default=0)+margin*2)
+    canvas_w = max(760, max(row_widths, default=0)+margin*2)
     y = header
     boxes = {}
     row_index = {}
@@ -191,7 +202,7 @@ def main():
         y += row_h+row_gap
 
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
-    canvas_h = max(620, y-row_gap+margin+legend_h)
+    canvas_h = max(420, y-row_gap+margin+legend_h)
     title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
     subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
@@ -206,6 +217,9 @@ def main():
     if subtitle:
         out.append(f'<text x="{margin}" y="72" font-family="Inter,Arial,sans-serif" font-size="13" '
                    f'fill="#64748B">{esc(subtitle)}</text>')
+
+    # Edge labels must avoid not only nodes but also region header strips.
+    label_obstacles = dict(boxes)
 
     # Regions are visual containers only. Real boundaries come from evidence-backed
     # boundaries; presentation groups remain softer and never become edge endpoints.
@@ -228,7 +242,10 @@ def main():
         bx, by, bw, bh = rr
         bid = str(boundary.get("id") or "")
         name = str(boundary.get("name") or bid)
-        out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}"><rect x="{bx:.1f}" y="{by:.1f}" '
+        members = ",".join(str(x) for x in (boundary.get("contains") or []))
+        label_obstacles[f"boundary:{bid}:header"] = (bx, by, bw, min(24.0, bh))
+        out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}" data-region-kind="boundary" '
+                   f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
                    'stroke-width="1.4" stroke-dasharray="8 6"/>'
                    f'<text x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
@@ -244,7 +261,10 @@ def main():
         gx, gy, gw, gh = rr
         gid = str(group.get("id") or "")
         name = str(group.get("label") or group.get("name") or gid)
-        out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
+        members = ",".join(str(x) for x in (group.get("contains") or []))
+        label_obstacles[f"group:{gid}:header"] = (gx, gy, gw, min(24.0, gh))
+        out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}" data-region-kind="presentation" '
+                   f'data-members="{esc(members)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
                    f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
                    'stroke="#CBD5E1" stroke-width="1"/>'
                    f'<text x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
@@ -283,7 +303,10 @@ def main():
 
     route_lane_count = {}
     existing_routes = []
-    placed_labels = []
+    routed_edges = []
+
+    # Phase 1: route every edge. Labels are deliberately deferred because a label
+    # cannot avoid an edge that has not been routed yet.
     for ei, e in ordered_edges:
         sid, tid = e["from"], e["to"]
         if sid not in boxes or tid not in boxes:
@@ -299,7 +322,16 @@ def main():
         )
         if len(pts) < 2:
             continue
+        record = {"id": eid, "source": sid, "target": tid, "points": pts, "edge": e}
+        existing_routes.append(record)
+        routed_edges.append(record)
 
+    # Phase 2: render all routed edges now that global route geometry is known.
+    for record in routed_edges:
+        e = record["edge"]
+        eid = record["id"]
+        sid, tid = record["source"], record["target"]
+        pts = record["points"]
         dashed = (e.get("sync") is False) or e.get("relation") in {
             "publishes", "emits", "consumes", "async", "event"
         }
@@ -313,33 +345,37 @@ def main():
                    f'data-target-id="{esc(tid)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
                    f'stroke-width="{stroke_width}"{dash} marker-end="url(#arrow)"/></g>')
 
-        existing_routes.append({"id": eid, "source": sid, "target": tid, "points": pts})
-
+    # Phase 3: place labels against the complete edge set.
+    placed_labels = []
+    for record in routed_edges:
+        e = record["edge"]
+        eid = record["id"]
+        pts = record["points"]
         label = str(e.get("label") or e.get("protocol") or "").strip()
-        if label:
-            lw = max(34, min(210, 14+len(label)*5.8))
-            lh = 20
-            lx, ly, _, _ = place_label(
-                pts, lw, lh, boxes, placed_labels, existing_routes, eid, canvas_w, canvas_h
-            )
-            placed_labels.append((lx, ly, lw, lh))
-            out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
-                       f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
-                       'fill="#FFFFFF" fill-opacity="0.94"/>'
-                       f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
-                       f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
+        if not label:
+            continue
+        lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
+        lh = 20
+        lx, ly, _, _ = place_label(
+            pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
+        )
+        placed_labels.append((lx, ly, lw, lh))
+        out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
+                   f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
+                   'fill="#FFFFFF" fill-opacity="0.94"/>'
+                   f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
 
     for nid, (x, yy, w, h) in boxes.items():
         node = nmap[nid]
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
         lines = node_lines(node, w)
-        out.append(f'<g class="node" data-node-id="{esc(nid)}"><rect x="{x:.1f}" y="{yy:.1f}" '
+        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
-        for li, (kind, line) in enumerate(lines):
-            size = 13 if kind == "title" else 10.5
+        for li, (kind, line, size) in enumerate(lines):
             weight = "700" if kind == "title" else "400"
             color = "#0F172A" if kind == "title" else "#475569"
             out.append(f'<text x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
