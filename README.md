@@ -239,6 +239,7 @@ repo-diagrammer/
 │   │       ├── render_architecture_svg.py
 │   │       ├── render_polished.py
 │   │       ├── density_planner.py
+│   │       ├── validate_split_set.py
 │   │       ├── geometry_router.py
 │   │       ├── text_metrics.py
 │   │       ├── validate_spec.py
