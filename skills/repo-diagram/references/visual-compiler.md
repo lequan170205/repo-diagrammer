@@ -59,6 +59,7 @@ Automatic splitting is semantics-preserving:
 - the overview selects real primary/focus/high-degree nodes only, while reserving capacity for at least one real representative from every detail cluster whenever the overview budget can cover them all;
 - detail views contain a bounded core plus a few real one-hop context nodes;
 - semantic-role equality alone never justifies merging disconnected cores: clustering preserves source-graph connectivity and records per-view cohesion metrics;
+- connectivity never overrides authored/evidence-derived grouping: every detail cluster carries a boundary/group/role seed key, and validation rejects cores that escape that provenance;
 - if bounded context would leave source relations unrepresented, the planner adds bounded integration views containing only the real endpoints of those uncovered edges;
 - evidence-backed boundaries and presentation groups are shown only when their full
   membership is visible in that generated view;
