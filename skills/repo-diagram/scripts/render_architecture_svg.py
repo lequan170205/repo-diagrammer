@@ -220,8 +220,10 @@ def main():
         content_bottom = max(core_bottom, side_stack_bottom)
 
     # Sidecars align semantically with the median connected core row so edges enter
-    # horizontally whenever possible instead of making unnecessary cross-layer arcs.
+    # horizontally whenever possible. Pack each side independently so two externals
+    # targeting the same row never occupy the same geometry.
     middle_row = max(0, (len(rows)-1)//2)
+    desired_sidecar_rows = {}
     for zone in ("left", "right"):
         for nid in sidecars[zone]:
             neighbor_rows = []
@@ -235,12 +237,22 @@ def main():
                     neighbor_rows.append(row_index[other])
             if neighbor_rows:
                 vals = sorted(neighbor_rows)
-                row_index[nid] = vals[len(vals)//2]
-                target_y = header+row_index[nid]*(node_h+row_gap)
-                x0, _, w, h = boxes[nid]
-                boxes[nid] = (x0, target_y, w, h)
+                desired_sidecar_rows[nid] = vals[len(vals)//2]
             else:
-                row_index[nid] = middle_row
+                desired_sidecar_rows[nid] = middle_row
+            row_index[nid] = desired_sidecar_rows[nid]
+
+        previous_bottom = header-sidecar_stack_gap
+        ordered = sorted(
+            sidecars[zone],
+            key=lambda nid: (desired_sidecar_rows[nid], sidecars[zone].index(nid))
+        )
+        for nid in ordered:
+            desired_y = header+desired_sidecar_rows[nid]*(node_h+row_gap)
+            packed_y = max(desired_y, previous_bottom+sidecar_stack_gap)
+            x0, _, w, h = boxes[nid]
+            boxes[nid] = (x0, packed_y, w, h)
+            previous_bottom = packed_y+h
 
     content_bottom = max([y0+h for x0, y0, w, h in boxes.values()] or [content_bottom])
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
