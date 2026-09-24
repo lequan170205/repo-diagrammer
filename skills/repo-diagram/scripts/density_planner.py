@@ -383,6 +383,29 @@ def _prune_overview_edges(doc, spec):
     return kept, omitted
 
 
+def _primary_runs(path, included):
+    included = set(included)
+    runs = []
+    current = []
+    for nid in [str(x) for x in (path or [])]:
+        if nid in included:
+            current.append(nid)
+        else:
+            if current:
+                runs.append(current)
+                current = []
+    if current:
+        runs.append(current)
+    return runs
+
+
+def _longest_primary_run(runs):
+    if not runs:
+        return []
+    # Stable tie-breaker: first run in source order wins.
+    return max(enumerate(runs), key=lambda item: (len(item[1]), -item[0]))[1]
+
+
 def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overview=False, split_kind=None):
     core = set(str(x) for x in core_ids)
     nodes, edges, adjacency, degree = graph_data(doc)
@@ -424,8 +447,10 @@ def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overvie
     clone["layout"] = layout
 
     view = copy.deepcopy(doc.get("view") or {})
-    primary = [str(x) for x in (view.get("primary_path") or []) if str(x) in included]
-    view["primary_path"] = primary
+    source_primary = [str(x) for x in (view.get("primary_path") or [])]
+    primary_runs = _primary_runs(source_primary, included)
+    view["primary_paths"] = [run for run in primary_runs if len(run) >= 2]
+    view["primary_path"] = _longest_primary_run(primary_runs)
     view["focus"] = sorted(core)
     view["context_nodes"] = context
     view["suppress"] = sorted(all_ids - included)
