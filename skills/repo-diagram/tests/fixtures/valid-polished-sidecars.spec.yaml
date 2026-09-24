@@ -1,0 +1,90 @@
+question: "Polished architecture with sidecars"
+type: c4-container
+audience: architecture-review
+scope: smoke
+commit: test
+conformance:
+  mode: practical
+  targets: []
+  claim: documented-subset
+nodes:
+  - id: client
+    label: Mobile
+    kind: container
+    tech: React Native
+    responsibility: Client app
+    semantic_role: clients
+    evidence: ["test:1"]
+  - id: api
+    label: API
+    kind: container
+    tech: NestJS
+    responsibility: Public API
+    semantic_role: api
+    evidence: ["test:2"]
+  - id: broker
+    label: Broker
+    kind: queue
+    tech: RabbitMQ
+    responsibility: Async messaging
+    semantic_role: messaging
+    evidence: ["test:3"]
+  - id: external
+    label: Push provider
+    kind: external-system
+    tech: FCM
+    responsibility: Push delivery
+    semantic_role: external
+    evidence: ["test:4"]
+edges:
+  - id: client_api
+    from: client
+    to: api
+    relation: calls
+    label: HTTPS
+    protocol: HTTPS
+    sync: true
+    crosses_network: true
+    evidence: ["test:5"]
+  - id: api_broker
+    from: api
+    to: broker
+    relation: publishes
+    label: event
+    protocol: AMQP
+    sync: false
+    crosses_network: true
+    evidence: ["test:6"]
+  - id: api_external
+    from: api
+    to: external
+    relation: calls
+    label: push
+    protocol: HTTPS
+    sync: true
+    crosses_network: true
+    evidence: ["test:7"]
+interaction_fragments: []
+boundaries: []
+view:
+  profile: architecture
+  renderer: native-svg
+  fallback_renderer: mermaid
+  options: {}
+presentation:
+  style: polished-overview
+  title: "Smoke Architecture"
+  groups: []
+  legend:
+    show: true
+layout:
+  rows:
+    - {id: clients, nodes: [client]}
+    - {id: runtime, nodes: [api]}
+    - {id: async, nodes: [broker]}
+  sidecars:
+    right: [external]
+  crossing_target: 0
+  edge_node_crossings_target: 0
+  geometry_gate: required
+gaps: []
