@@ -160,6 +160,46 @@ YAML
   grep -q 'data-layout-variant="2"' "$tmp_visual/same-row.svg"
   grep -q 'data-routing-variant="3"' "$tmp_visual/same-row.svg"
 
+  cat > "$tmp_visual/primary-source.spec.yaml" <<'YAML'
+question: split primary path continuity
+type: c4-container
+scope: self-test primary
+nodes:
+  - {id: a, label: A, semantic_role: clients, evidence: ["test:a"]}
+  - {id: b, label: B, semantic_role: api, evidence: ["test:b"]}
+  - {id: c, label: C, semantic_role: domain, evidence: ["test:c"]}
+  - {id: d, label: D, semantic_role: data, evidence: ["test:d"]}
+edges:
+  - {id: ab, from: a, to: b, relation: calls, label: AB, sync: true, evidence: ["test:ab"]}
+  - {id: bc, from: b, to: c, relation: calls, label: BC, sync: true, evidence: ["test:bc"]}
+  - {id: cd, from: c, to: d, relation: calls, label: CD, sync: true, evidence: ["test:cd"]}
+  - {id: ac, from: a, to: c, relation: calls, label: secondary, sync: true, evidence: ["test:ac"]}
+view:
+  profile: architecture
+  primary_path: [a, b, c, d]
+presentation:
+  style: polished-overview
+  title: Primary Continuity
+layout:
+  crossing_target: 0
+YAML
+  PYTHONPATH="$core/scripts" python3 - "$tmp_visual/primary-source.spec.yaml" "$tmp_visual/primary-derived.spec.yaml" <<'PY'
+import sys, yaml
+from density_planner import make_view
+src = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+derived = make_view(src, ["a", "c", "d"], "Derived", context_limit=0)
+assert derived["view"]["primary_paths"] == [["c", "d"]], derived["view"]
+assert derived["view"]["primary_path"] == ["c", "d"], derived["view"]
+with open(sys.argv[2], "w", encoding="utf-8") as fh:
+    yaml.safe_dump(derived, fh, sort_keys=False)
+PY
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/primary-derived.spec.yaml" "$tmp_visual/primary-derived.svg" >/dev/null
+  grep -q 'data-edge-id="cd".*data-primary="true"' "$tmp_visual/primary-derived.svg"
+  if grep -q 'data-edge-id="ac".*data-primary="true"' "$tmp_visual/primary-derived.svg"; then
+    echo "secondary edge ac was incorrectly promoted across omitted primary node b" >&2
+    exit 1
+  fi
+
   cat > "$tmp_visual/sidecars.spec.yaml" <<'YAML'
 question: native sidecar geometry
 type: c4-container
