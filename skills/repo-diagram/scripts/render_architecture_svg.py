@@ -11,10 +11,10 @@ import argparse
 import html
 import math
 import sys
-import textwrap
 from pathlib import Path
 
 from geometry_router import place_label, route_edge
+from text_metrics import estimate_text_width, fit_font_size, wrap_text
 
 try:
     import yaml
@@ -53,23 +53,34 @@ def display_parts(n):
 
 
 def width_for(n):
-    longest = max([len(x) for x in display_parts(n)] or [10])
-    return max(160, min(320, 110+longest*5.2))
+    parts = display_parts(n)
+    if not parts:
+        return 160
+    title_w = estimate_text_width(parts[0], 13, "700") + 28
+    tech_w = estimate_text_width(parts[1], 10.5) + 28 if len(parts) > 1 else 0
+    # Responsibilities should wrap rather than forcing poster-width nodes.
+    responsibility_target = min(
+        300,
+        estimate_text_width(parts[2], 10.5) + 28 if len(parts) > 2 else 0,
+    )
+    return max(160, min(340, max(title_w, tech_w, responsibility_target, 160)))
 
 
 def node_lines(n, width):
     parts = display_parts(n)
     if not parts:
         return []
-    result = [("title", parts[0])]
-    char_budget = max(22, int((width-28)/5.6))
+    inner = max(40, width-28)
+    title_size = fit_font_size(parts[0], inner, 13, 9.5)
+    result = [("title", parts[0], title_size)]
     if len(parts) > 1:
-        result.append(("detail", parts[1]))
+        tech_size = fit_font_size(parts[1], inner, 10.5, 8.5)
+        result.append(("detail", parts[1], tech_size))
     if len(parts) > 2:
-        wrapped = textwrap.wrap(parts[2], width=char_budget, break_long_words=False,
-                                break_on_hyphens=False) or [parts[2]]
-        for line in wrapped[:3]:
-            result.append(("detail", line))
+        wrapped = wrap_text(parts[2], inner, 10.5, max_lines=3) or [parts[2]]
+        for line in wrapped:
+            size = fit_font_size(line, inner, 10.5, 8.5)
+            result.append(("detail", line, size))
     return result
 
 
@@ -317,7 +328,7 @@ def main():
 
         label = str(e.get("label") or e.get("protocol") or "").strip()
         if label:
-            lw = max(34, min(210, 14+len(label)*5.8))
+            lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
             lh = 20
             lx, ly, _, _ = place_label(
                 pts, lw, lh, boxes, placed_labels, existing_routes, eid, canvas_w, canvas_h
@@ -338,8 +349,7 @@ def main():
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
-        for li, (kind, line) in enumerate(lines):
-            size = 13 if kind == "title" else 10.5
+        for li, (kind, line, size) in enumerate(lines):
             weight = "700" if kind == "title" else "400"
             color = "#0F172A" if kind == "title" else "#475569"
             out.append(f'<text x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
