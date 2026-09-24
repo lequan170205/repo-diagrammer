@@ -27,7 +27,8 @@ polished-overview`, prefer `render_architecture_svg.py` when PyYAML is available
 
 It owns node geometry instead of delegating the entire composition to Mermaid:
 
-- deterministic layered placement;
+- deterministic top-to-bottom layered placement;
+- geometry-owned left/right/bottom sidecar lanes for real nodes;
 - declaration-order-aware barycentric ordering plus adjacent-swap hill climbing;
 - candidate-scored orthogonal edge routing;
 - obstacle-aware perimeter routing for long cross-layer edges;
@@ -44,6 +45,17 @@ Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics a
 the main value. The native renderer is intentionally not a replacement for Sequence,
 Class, ER, State, or rich UML Deployment notation.
 
+### Native layout contract
+
+The polished native renderer owns top-to-bottom geometry. `layout.direction` may be
+blank/TB/TD (and equivalent top-to-bottom aliases). LR/RL is never silently ignored:
+select a Mermaid/PlantUML/Graphviz fallback when horizontal composition is required.
+
+`layout.sidecars.left/right/bottom` moves **real evidence-backed nodes** into dedicated
+lanes while keeping them in routing, regions, geometry QA and browser typography QA.
+A node may belong to only one sidecar lane and may not also be declared in a main row.
+Unknown/duplicate/conflicting sidecar IDs are rejected before rendering.
+
 ## Density planning and automatic splitting
 
 Before a polished architecture render, measure source-view density. By default a view
@@ -56,19 +68,17 @@ Automatic splitting is semantics-preserving:
 - no synthetic subsystem/service nodes are invented;
 - the overview selects real primary/focus/high-degree nodes only;
 - detail views contain a bounded core plus a few real one-hop context nodes;
-- if bounded context would leave source relations unrepresented, the planner adds bounded integration views containing only the real endpoints of those uncovered edges;
 - evidence-backed boundaries and presentation groups are shown only when their full
   membership is visible in that generated view;
 - omitted elements are recorded in `view.suppress`;
-- context elements are recorded in `view.context_nodes`;
+- context elements are recorded in `view.context_nodes`.
 - primary-flow emphasis never bridges omitted nodes: split views preserve contiguous source runs in `view.primary_paths` and use the longest run for backward-compatible `view.primary_path`.
 
 The default generated set is an overview plus bounded detail views. The manifest
 records why splitting happened and explicitly states that stable IDs were preserved
 and no architecture elements were invented. Before any generated view is rendered,
 `validate_split_set.py` compares every selected node, edge, protocol, sync flag,
-evidence field and complete boundary against the source spec, and requires 100% source
-node/edge coverage across the generated set.
+evidence field and complete boundary against the source spec.
 
 Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
 let `render_polished.py` automatically create `<output-stem>.set/` when splitting is
