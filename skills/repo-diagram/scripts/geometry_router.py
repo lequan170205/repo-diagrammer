@@ -171,6 +171,47 @@ def box_overlap(a,b,pad=0.0):
     return min(ax+aw,bx+bw)-max(ax,bx)>pad and min(ay+ah,by+bh)-max(ay,by)>pad
 
 
+def segment_rect_distance(a, b, rect):
+    """Minimum distance between an axis-aligned route segment and a label rectangle."""
+    x, y, w, h = rect
+    left, right, top, bottom = x, x+w, y, y+h
+    if abs(a[0]-b[0]) < EPS:
+        xx = a[0]
+        sy0, sy1 = sorted((a[1], b[1]))
+        dx = 0.0 if left <= xx <= right else min(abs(xx-left), abs(xx-right))
+        if sy1 < top:
+            dy = top-sy1
+        elif sy0 > bottom:
+            dy = sy0-bottom
+        else:
+            dy = 0.0
+        return math.hypot(dx, dy)
+    if abs(a[1]-b[1]) < EPS:
+        yy = a[1]
+        sx0, sx1 = sorted((a[0], b[0]))
+        dy = 0.0 if top <= yy <= bottom else min(abs(yy-top), abs(yy-bottom))
+        if sx1 < left:
+            dx = left-sx1
+        elif sx0 > right:
+            dx = sx0-right
+        else:
+            dx = 0.0
+        return math.hypot(dx, dy)
+
+    # Native routes are expected to be orthogonal; keep a conservative fallback.
+    cx, cy = x+w/2, y+h/2
+    return min(math.dist((cx, cy), a), math.dist((cx, cy), b))
+
+
+def rect_route_distance(rect, points):
+    if len(points) < 2:
+        return float("inf")
+    return min(
+        segment_rect_distance(a, b, rect)
+        for a, b in zip(points, points[1:])
+    )
+
+
 def label_candidates(points,w,h):
     candidates=[]
     segs=sorted(zip(points,points[1:]),key=lambda ab:math.dist(ab[0],ab[1]),reverse=True)
@@ -217,7 +258,15 @@ def place_label(points,w,h,boxes,placed_labels,existing_routes,owner_edge_id,can
             for a,b in zip(route["points"],route["points"][1:]):
                 if segment_hits_box(a,b,rect,pad=1.0):
                     s+=70_000
-        # Prefer compact position near center of diagram and earlier candidates.
+
+        owner_distance = rect_route_distance(rect, points)
+        # Association is part of readability. Far-away labels may avoid collisions
+        # geometrically but become ambiguous to a human reader.
+        s += owner_distance * 350
+        if owner_distance > 36:
+            s += 120_000 + (owner_distance-36)*2_000
+
+        # Prefer compact position near center of diagram only as a weak tie-breaker.
         s+=abs((x+rw/2)-canvas_w/2)*0.02
         return s
 
