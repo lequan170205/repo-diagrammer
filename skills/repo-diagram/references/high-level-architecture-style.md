@@ -171,7 +171,8 @@ A polished overview should feel like a technical architecture poster:
 - external integrations grouped rather than scattered;
 - data and observability visually anchored at the bottom;
 - whitespace between regions, not inside labels;
-- no accidental presentation group/boundary capture of unrelated nodes.
+- no accidental presentation group/boundary capture of unrelated nodes;
+- legends explain only encodings actually used on the canvas; stale or invented legend keys are not allowed.
 
 A source-correct diagram that looks like raw auto-layout should be iterated before
 delivery.
