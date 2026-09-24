@@ -294,7 +294,7 @@ def main():
             return 0
         return min(range(len(row_centers)), key=lambda i: abs(row_centers[i]-center_y))
 
-    def place_vertical_sidecar(lane, lane_x):
+    def place_vertical_sidecar(lane, lane_x, lane_width, align):
         ids = sidecars[lane]
         if not ids:
             return header
@@ -302,7 +302,10 @@ def main():
         sy = header + max(0, (main_height-total_h)/2)
         for nid in ids:
             w, h = node_dims[nid]
-            x = lane_x + (max(left_width, right_width, w)-w)/2 if False else lane_x
+            if align == "right":
+                x = lane_x + lane_width-w
+            else:
+                x = lane_x
             boxes[nid] = (x, sy, w, h)
             row_index[nid] = nearest_row_index(sy+h/2)
             sidecar_position[nid] = lane
@@ -311,8 +314,14 @@ def main():
 
     left_x = main_body_left
     right_x = main_left + main_width + (sidecar_gap if right_width else 0)
-    left_bottom = place_vertical_sidecar("left", left_x) if left_width else header
-    right_bottom = place_vertical_sidecar("right", right_x) if right_width else header
+    left_bottom = (
+        place_vertical_sidecar("left", left_x, left_width, "right")
+        if left_width else header
+    )
+    right_bottom = (
+        place_vertical_sidecar("right", right_x, right_width, "left")
+        if right_width else header
+    )
 
     body_bottom = max(main_bottom, left_bottom, right_bottom)
     bottom_bottom = body_bottom
