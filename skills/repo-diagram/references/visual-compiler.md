@@ -38,7 +38,8 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - adaptive node height with glyph-aware width estimation and wrapped responsibility copy;
 - optional real-browser typography verification using SVG `getBBox()`;
 - adaptive canvas sizing to reduce dead whitespace on small views;
-- semantic legends inferred from the encodings actually present: primary flow, sync/async relations, and visible node roles, with automatic wrapping;
+- semantic legends inferred from the encodings actually present: primary flow, sync/async relations, visible node roles, and split-view context nodes, with automatic wrapping;
+- split detail views preserve semantic-role color while muting/dashing `view.context_nodes`, keeping `view.focus` visually dominant;
 - stable `data-node-id` and `data-edge-id` metadata for machine inspection.
 
 Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics are
