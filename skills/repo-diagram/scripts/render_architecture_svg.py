@@ -43,15 +43,29 @@ def node_role(n):
     return str(n.get("semantic_role") or n.get("kind") or "domain")
 
 
+def ellipsize(value, limit=54):
+    text = str(value or "").strip()
+    return text if len(text) <= limit else text[:max(1, limit-1)].rstrip()+"…"
+
+
 def display_lines(n):
-    vals = [n.get("display_label") or n.get("label") or n.get("id"),
-            n.get("tech"), n.get("responsibility")]
-    return [str(v).strip() for v in vals if str(v or "").strip()][:3]
+    primary = str(n.get("display_label") or n.get("label") or n.get("id") or "").strip()
+    exact_id = str(n.get("id") or "").strip()
+    lines = [primary] if primary else []
+    if exact_id and exact_id != primary:
+        lines.append(exact_id)
+    detail = " · ".join(
+        str(v).strip() for v in (n.get("tech"), n.get("responsibility"))
+        if str(v or "").strip()
+    )
+    if detail:
+        lines.append(ellipsize(detail))
+    return lines[:3]
 
 
 def width_for(n):
     longest = max([len(x) for x in display_lines(n)] or [10])
-    return max(160, min(260, 110+longest*5.2))
+    return max(160, min(360, 110+longest*5.4))
 
 
 def parse_rows(doc, nodes):
@@ -361,6 +375,8 @@ def main():
 
     same_row_count = {}
     cross_count = {}
+    routed_edges = []
+    pending_labels = []
     for ei, e in enumerate(edges):
         sid, tid = e["from"], e["to"]
         if sid not in boxes or tid not in boxes:
@@ -431,24 +447,74 @@ def main():
         out.append(f'<g class="edge" data-edge-id="{esc(eid)}" data-source-id="{esc(sid)}" '
                    f'data-target-id="{esc(tid)}"><path d="{d}" fill="none" stroke="#475569" '
                    f'stroke-width="1.7"{dash} marker-end="url(#arrow)"/></g>')
+        routed_edges.append((eid, pts))
         label = str(e.get("label") or e.get("protocol") or "").strip()
         if label:
-            # Place labels on the longest route segment and give them a measurable
-            # background box so collision analysis is deterministic.
-            segs = list(zip(pts, pts[1:]))
-            a, b = max(segs, key=lambda ab: math.dist(ab[0], ab[1]))
+            pending_labels.append((eid, label, pts))
+
+    def rect_overlaps(a, b, pad=3):
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        return (min(ax+aw+pad, bx+bw+pad)-max(ax-pad, bx-pad) > 0 and
+                min(ay+ah+pad, by+bh+pad)-max(ay-pad, by-pad) > 0)
+
+    def route_hits_rect(points, rect):
+        rx, ry, rw, rh = rect
+        for p1, p2 in zip(points, points[1:]):
+            if abs(p1[0]-p2[0]) < 0.01:
+                x0 = p1[0]
+                y1, y2 = sorted((p1[1], p2[1]))
+                if rx < x0 < rx+rw and max(y1, ry) < min(y2, ry+rh):
+                    return True
+            elif abs(p1[1]-p2[1]) < 0.01:
+                y0 = p1[1]
+                x1, x2 = sorted((p1[0], p2[0]))
+                if ry < y0 < ry+rh and max(x1, rx) < min(x2, rx+rw):
+                    return True
+        return False
+
+    placed_label_boxes = []
+    for eid, label, pts in pending_labels:
+        lw = max(34, min(220, 14+len(label)*5.8))
+        lh = 20
+        segs = sorted(zip(pts, pts[1:]), key=lambda ab: math.dist(ab[0], ab[1]), reverse=True)
+        candidates = []
+        for a, b in segs:
+            for frac in (0.5, 0.35, 0.65):
+                mx = a[0]+(b[0]-a[0])*frac
+                my = a[1]+(b[1]-a[1])*frac
+                if abs(a[0]-b[0]) < abs(a[1]-b[1]):
+                    candidates.extend([(mx+7, my-lh/2), (mx-lw-7, my-lh/2)])
+                else:
+                    candidates.extend([(mx-lw/2, my-lh-5), (mx-lw/2, my+5)])
+
+        chosen = None
+        for lx, ly in candidates:
+            candidate = (lx, ly, lw, lh)
+            if lx < 6 or ly < 82 or lx+lw > canvas_w-6 or ly+lh > canvas_h-6:
+                continue
+            if any(rect_overlaps(candidate, box) for box in boxes.values()):
+                continue
+            if any(rect_overlaps(candidate, other) for other in placed_label_boxes):
+                continue
+            if any(other_id != eid and route_hits_rect(other_pts, candidate)
+                   for other_id, other_pts in routed_edges):
+                continue
+            chosen = candidate
+            break
+
+        if chosen is None:
+            a, b = segs[0]
             mx, my = (a[0]+b[0])/2, (a[1]+b[1])/2
-            lw = max(34, min(210, 14+len(label)*5.8))
-            lh = 20
-            if abs(a[0]-b[0]) < abs(a[1]-b[1]):
-                lx, ly = mx+7, my-lh/2
-            else:
-                lx, ly = mx-lw/2, my-lh-5
-            out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
-                       f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
-                       'fill="#FFFFFF" fill-opacity="0.94"/>'
-                       f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
-                       f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
+            chosen = (mx-lw/2, my-lh-5, lw, lh)
+
+        lx, ly, lw, lh = chosen
+        placed_label_boxes.append(chosen)
+        out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
+                   f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
+                   'fill="#FFFFFF" fill-opacity="0.94"/>'
+                   f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
 
     for nid, (x, yy, w, h) in boxes.items():
         node = nmap[nid]
