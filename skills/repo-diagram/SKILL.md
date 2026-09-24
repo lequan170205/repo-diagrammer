@@ -120,7 +120,8 @@ Read `references/renderer-strategy.md`, `references/notation.md`, and
 `references/visual-compiler.md`. Do not default blindly to Mermaid.
 
 Record preferred/fallback renderer in the spec. A fallback is allowed only if it
-preserves semantics.
+preserves semantics. Native polished architecture owns TB/TD layout; use a fallback
+renderer for an explicit LR/RL request instead of pretending the direction was applied.
 
 Plan layout before source:
 - density budget and whether the view should split;
@@ -128,7 +129,7 @@ Plan layout before source:
 - declaration/participant order (used as a deterministic ordering hint);
 - real boundaries;
 - presentation-only groups;
-- direction and crossing target;
+- direction, sidecar lanes, and crossing target;
 - legend semantics.
 
 ## Step 6 — Render and visual-review
