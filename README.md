@@ -120,7 +120,7 @@ The **rendered** result is inspected at 100%. Layout, hierarchy, crossings, labe
 density and legend semantics can be Blocking defects. Dense polished architecture
 views are automatically split into a real-node overview plus bounded detail views
 before rendering; generated views preserve stable source IDs and are validated for
-verbatim source semantics, full relation coverage, manifest-enforced density/view budgets, connected detail cores with source-derived cohesion metrics,
+verbatim source semantics, full relation coverage, manifest-enforced density/view budgets, connected detail cores with source-derived cohesion metrics, overview quota protection so long primary/focus stories cannot hide entire detail clusters,
 contiguous primary-flow runs that remain layout-significant after splitting, and a
 visible focus/context hierarchy in generated detail views.
 
