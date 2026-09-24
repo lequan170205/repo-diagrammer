@@ -225,6 +225,43 @@ def main():
         out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
+    # Allocate distinct ports before routing so multiple edges incident to the same
+    # node do not collapse into one ambiguous stem.
+    port_groups = {}
+    edge_sides = {}
+    for ei, e in enumerate(edges):
+        sid, tid = e.get("from"), e.get("to")
+        if sid not in boxes or tid not in boxes:
+            continue
+        sx, sy, sw, sh = boxes[sid]
+        tx, ty, tw, th = boxes[tid]
+        sri, tri = row_index[sid], row_index[tid]
+        if sri == tri:
+            if sx+sw/2 <= tx+tw/2:
+                ss, ts = "right", "left"
+            else:
+                ss, ts = "left", "right"
+        elif tri > sri:
+            ss, ts = "bottom", "top"
+        else:
+            ss, ts = "top", "bottom"
+        edge_sides[ei] = (ss, ts)
+        port_groups.setdefault((sid, ss), []).append(ei)
+        port_groups.setdefault((tid, ts), []).append(ei)
+
+    def port_for(nid, side, ei):
+        x, y0, w, h = boxes[nid]
+        group = port_groups.get((nid, side), [ei])
+        idx = group.index(ei)
+        frac = (idx+1)/(len(group)+1)
+        if side == "top":
+            return x+w*frac, y0
+        if side == "bottom":
+            return x+w*frac, y0+h
+        if side == "left":
+            return x, y0+h*frac
+        return x+w, y0+h*frac
+
     same_row_count = {}
     cross_count = {}
     for ei, e in enumerate(edges):
@@ -239,21 +276,19 @@ def main():
         }
         dash = ' stroke-dasharray="7 6"' if dashed else ""
 
+        source_side, target_side = edge_sides[ei]
         if sri == tri:
             k = same_row_count.get(sri, 0)
             same_row_count[sri] = k+1
-            x1, y1, x2, y2 = sx+sw, sy+sh/2, tx, ty+th/2
-            if x2 < x1:
-                x1, x2 = sx, tx+tw
+            x1, y1 = port_for(sid, source_side, ei)
+            x2, y2 = port_for(tid, target_side, ei)
             lift = 32+18*k
             midy = min(sy, ty)-lift
-            pts = [(x1, y1), (x1+12, midy), (x2-12, midy), (x2, y2)]
+            pts = [(x1, y1), (x1, midy), (x2, midy), (x2, y2)]
         else:
             downward = tri > sri
-            x1 = sx+sw/2
-            y1 = sy+sh if downward else sy
-            x2 = tx+tw/2
-            y2 = ty if downward else ty+th
+            x1, y1 = port_for(sid, source_side, ei)
+            x2, y2 = port_for(tid, target_side, ei)
             key = (min(sri, tri), max(sri, tri))
             k = cross_count.get(key, 0)
             cross_count[key] = k+1
@@ -282,7 +317,13 @@ def main():
                           for bid in intermediate
                           for a, b in zip(pts, pts[1:]))
             if blocked:
-                channel = 32 if (x1+x2)/2 > canvas_w/2 else canvas_w-32
+                # Use the nearest perimeter, not the opposite side of the canvas.
+                # Multiple blocked edges get adjacent lanes inside the outer margin.
+                lane = k % 3
+                if (x1+x2)/2 > canvas_w/2:
+                    channel = canvas_w-(32+lane*12)
+                else:
+                    channel = 32+lane*12
                 stub1 = y1+(18 if downward else -18)
                 stub2 = y2+(-18 if downward else 18)
                 pts = [(x1, y1), (x1, stub1), (channel, stub1),
