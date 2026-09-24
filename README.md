@@ -123,8 +123,9 @@ before rendering; generated views preserve stable source IDs and are validated f
 verbatim source semantics, full relation coverage, manifest-enforced view budgets,
 and contiguous primary-flow runs that remain layout-significant after splitting.
 
-For polished static architecture, the native visual compiler owns node geometry and
-orthogonal edge routing. `visual_analyze_svg.py` mechanically checks node overlap,
+For polished static architecture, the native visual compiler owns node geometry,
+orthogonal edge routing, and a wrapped semantic legend inferred from active primary-flow,
+sync/async, and node-role encodings. `visual_analyze_svg.py` mechanically checks node overlap,
 edge-through-node defects, edge/edge crossings, tight gaps and route stretch.
 When Chrome/Chromium is available, `browser_typography.py` additionally measures
 actual SVG text bounds with `getBBox()`, verifies title/subtitle/row/legend hierarchy,

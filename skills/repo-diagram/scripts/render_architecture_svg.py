@@ -37,6 +37,18 @@ PALETTE = {
     "data": ("#F8FAFC", "#64748B"),
     "external": ("#FFF5F5", "#EF4444"),
 }
+ROLE_LABELS = {
+    "clients": "Clients",
+    "ingress": "Ingress",
+    "api": "API",
+    "realtime": "Realtime",
+    "messaging": "Messaging",
+    "processing": "Processing",
+    "domain": "Domain",
+    "data": "Data",
+    "observability": "Observability",
+    "external": "External",
+}
 
 
 def esc(s):
@@ -161,6 +173,17 @@ def main():
     ]
     if not primary_paths and primary_path:
         primary_paths = [primary_path]
+    primary_pairs = {
+        pair
+        for path in primary_paths
+        for pair in zip(path, path[1:])
+    }
+
+    def edge_is_async(edge):
+        return (edge.get("sync") is False) or edge.get("relation") in {
+            "publishes", "emits", "consumes", "async", "event"
+        }
+
     rows, layout_metrics = optimize_rows(
         parse_rows(doc, nodes),
         edges,
@@ -199,6 +222,72 @@ def main():
         ),
     ) + margin*2
     canvas_w = max(760, max(row_widths, default=0)+margin*2, header_w)
+
+    presentation = doc.get("presentation") or {}
+    legend_cfg = presentation.get("legend") or {}
+    legend_show = bool(legend_cfg.get("show"))
+    legend_items = []
+    if legend_show:
+        actual_pairs = {
+            (str(edge.get("from") or ""), str(edge.get("to") or ""))
+            for edge in edges
+        }
+        if primary_pairs & actual_pairs:
+            legend_items.append({
+                "key": "primary-flow",
+                "kind": "edge-primary",
+                "label": "Primary flow",
+            })
+        if any(not edge_is_async(edge) for edge in edges):
+            legend_items.append({
+                "key": "sync",
+                "kind": "edge-sync",
+                "label": "Sync",
+            })
+        if any(edge_is_async(edge) for edge in edges):
+            legend_items.append({
+                "key": "async-event",
+                "kind": "edge-async",
+                "label": "Async / event",
+            })
+
+        present_roles = {node_role(node) for node in nodes}
+        ordered_roles = sorted(
+            present_roles,
+            key=lambda role: (
+                ROLE_ORDER.index(role) if role in ROLE_ORDER else len(ROLE_ORDER),
+                role,
+            ),
+        )
+        for role in ordered_roles:
+            legend_items.append({
+                "key": f"role:{role}",
+                "kind": "role",
+                "role": role,
+                "label": ROLE_LABELS.get(role, role.replace("-", " ").title()),
+            })
+
+    def legend_item_width(item):
+        return 54 + estimate_text_width(item["label"], 10.5) * text_width_scale
+
+    legend_rows = []
+    if legend_show and legend_items:
+        current = []
+        used = 0.0
+        available = max(240.0, canvas_w - margin*2)
+        for item in legend_items:
+            item = dict(item)
+            item["width"] = legend_item_width(item)
+            if current and used + item["width"] > available:
+                legend_rows.append(current)
+                current = []
+                used = 0.0
+            current.append(item)
+            used += item["width"]
+        if current:
+            legend_rows.append(current)
+
+    legend_h = (48 + len(legend_rows)*28) if legend_show else 20
     y = header
     boxes = {}
     row_index = {}
@@ -214,7 +303,6 @@ def main():
             x += w+node_gap
         y += row_h+row_gap
 
-    legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
     canvas_h = max(420, y-row_gap+margin+legend_h)
 
     out = []
@@ -223,8 +311,12 @@ def main():
                f'data-layout-variant="{args.layout_variant % 4}" '
                f'data-routing-variant="{args.routing_variant % 4}" '
                f'data-estimated-crossings="{layout_metrics.get("estimated_crossings", 0)}">')
-    out.append('<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
-               '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>')
+    out.append('<defs>'
+               '<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
+               '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker>'
+               '<marker id="arrow-primary" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
+               '<path d="M0,0 L8,4 L0,8 z" fill="#1E293B"/></marker>'
+               '</defs>')
     out.append('<rect width="100%" height="100%" fill="#FFFFFF"/>')
     out.append(f'<text data-text-role="title" x="{margin}" y="46" font-family="Inter,Arial,sans-serif" font-size="26" '
                f'font-weight="700" fill="#0F172A">{esc(title)}</text>')
@@ -292,12 +384,6 @@ def main():
         ry = boxes[row["nodes"][0]][1]-18
         out.append(f'<text data-text-role="row-heading" x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
-
-    primary_pairs = {
-        pair
-        for path in primary_paths
-        for pair in zip(path, path[1:])
-    }
 
     def is_primary(edge):
         pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
@@ -371,18 +457,17 @@ def main():
         eid = record["id"]
         sid, tid = record["source"], record["target"]
         pts = record["points"]
-        dashed = (e.get("sync") is False) or e.get("relation") in {
-            "publishes", "emits", "consumes", "async", "event"
-        }
+        dashed = edge_is_async(e)
         dash = ' stroke-dasharray="7 6"' if dashed else ""
         d = "M " + " L ".join(f"{x:.1f},{yy:.1f}" for x, yy in pts)
         primary = is_primary(e)
         stroke = "#1E293B" if primary else "#475569"
         stroke_width = "2.8" if primary else "1.7"
+        marker = "arrow-primary" if primary else "arrow"
         primary_attr = ' data-primary="true"' if primary else ""
         out.append(f'<g class="edge" data-edge-id="{esc(eid)}" data-source-id="{esc(sid)}" '
                    f'data-target-id="{esc(tid)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
-                   f'stroke-width="{stroke_width}"{dash} marker-end="url(#arrow)"/></g>')
+                   f'stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})"/></g>')
 
     # Phase 3: place labels against the complete edge set.
     placed_labels = []
@@ -422,16 +507,48 @@ def main():
                        f'font-size="{size}" font-weight="{weight}" fill="{color}">{esc(line)}</text>')
         out.append("</g>")
 
-    if ((doc.get("presentation") or {}).get("legend") or {}).get("show"):
-        ly = canvas_h-34
-        out.append(f'<g class="legend"><line x1="{margin}" y1="{ly}" x2="{margin+34}" y2="{ly}" '
-                   'stroke="#475569" stroke-width="1.7"/>'
-                   f'<text data-text-role="legend" x="{margin+42}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
-                   'font-size="10.5" fill="#64748B">sync</text>')
-        out.append(f'<line x1="{margin+100}" y1="{ly}" x2="{margin+134}" y2="{ly}" '
-                   'stroke="#475569" stroke-width="1.7" stroke-dasharray="7 6"/>'
-                   f'<text data-text-role="legend" x="{margin+142}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
-                   'font-size="10.5" fill="#64748B">async/event</text></g>')
+    if legend_show:
+        legend_top = canvas_h-legend_h+16
+        out.append('<g class="legend" data-legend="semantic">')
+        out.append(
+            f'<text data-text-role="legend-heading" x="{margin}" y="{legend_top+11:.1f}" '
+            'font-family="Inter,Arial,sans-serif" font-size="9.5" font-weight="700" '
+            'fill="#64748B" letter-spacing="0.7">LEGEND</text>'
+        )
+        for row_idx, legend_row in enumerate(legend_rows):
+            item_y = legend_top+34+row_idx*28
+            item_x = float(margin)
+            for item in legend_row:
+                key = str(item["key"])
+                kind = item["kind"]
+                label = str(item["label"])
+                out.append(f'<g class="legend-item" data-legend-key="{esc(key)}">')
+                if kind == "role":
+                    role = str(item.get("role") or "")
+                    fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
+                    out.append(
+                        f'<rect x="{item_x:.1f}" y="{item_y-10:.1f}" width="18" height="12" '
+                        f'rx="4" fill="{fill}" stroke="{stroke}" stroke-width="1.2"/>'
+                    )
+                    text_x = item_x+26
+                else:
+                    stroke = "#1E293B" if kind == "edge-primary" else "#475569"
+                    width = "2.8" if kind == "edge-primary" else "1.7"
+                    dash = ' stroke-dasharray="7 6"' if kind == "edge-async" else ""
+                    out.append(
+                        f'<line x1="{item_x:.1f}" y1="{item_y-4:.1f}" '
+                        f'x2="{item_x+28:.1f}" y2="{item_y-4:.1f}" '
+                        f'stroke="{stroke}" stroke-width="{width}"{dash}/>'
+                    )
+                    text_x = item_x+36
+                out.append(
+                    f'<text data-text-role="legend" x="{text_x:.1f}" y="{item_y:.1f}" '
+                    'font-family="Inter,Arial,sans-serif" font-size="10.5" '
+                    f'fill="#64748B">{esc(label)}</text>'
+                )
+                out.append('</g>')
+                item_x += float(item["width"])
+        out.append('</g>')
 
     out.append("</svg>")
     args.output.parent.mkdir(parents=True, exist_ok=True)

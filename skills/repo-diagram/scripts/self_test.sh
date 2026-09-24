@@ -143,6 +143,7 @@ edges:
   - {id: e3, from: api, to: broker, relation: publishes, label: event, sync: false, evidence: ["test"]}
 view:
   profile: architecture
+  primary_path: [client, api, db]
 presentation:
   style: polished-overview
   title: Smoke Architecture
@@ -152,6 +153,14 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
+  grep -q 'data-legend-key="primary-flow"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="sync"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="async-event"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="role:clients"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="role:api"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="role:messaging"' "$tmp_visual/architecture.svg"
+  grep -q 'data-legend-key="role:data"' "$tmp_visual/architecture.svg"
+  grep -q 'marker-end="url(#arrow-primary)"' "$tmp_visual/architecture.svg"
   python3 "$core/scripts/browser_typography.py" "$tmp_visual/architecture.svg" --strict --required --json "$tmp_visual/architecture.typography.json" >/dev/null
   python3 "$core/scripts/render_polished.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-auto.svg" --max-passes 3 --require-browser-typography >/dev/null
   [ -s "$tmp_visual/architecture-auto.svg" ]
@@ -172,6 +181,7 @@ view:
 presentation:
   style: polished-overview
   title: Same Row
+  legend: {show: true}
 layout:
   crossing_target: 0
 YAML
@@ -180,6 +190,13 @@ YAML
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
   grep -q 'data-layout-variant="2"' "$tmp_visual/same-row.svg"
   grep -q 'data-routing-variant="3"' "$tmp_visual/same-row.svg"
+  grep -q 'data-legend-key="primary-flow"' "$tmp_visual/same-row.svg"
+  grep -q 'data-legend-key="sync"' "$tmp_visual/same-row.svg"
+  grep -q 'data-legend-key="role:domain"' "$tmp_visual/same-row.svg"
+  if grep -q 'data-legend-key="async-event"' "$tmp_visual/same-row.svg"; then
+    echo "sync-only diagram incorrectly rendered async legend item" >&2
+    exit 1
+  fi
 
   cat > "$tmp_visual/primary-source.spec.yaml" <<'YAML'
 question: split primary path continuity
