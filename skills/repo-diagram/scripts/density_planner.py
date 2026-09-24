@@ -598,6 +598,8 @@ def plan_views(
             "id": cluster["id"],
             "label": cluster["label"],
             "core": list(cluster["members"]),
+            "cluster_source": cluster.get("source"),
+            "cluster_quality": copy.deepcopy(cluster.get("quality") or {}),
             "spec": make_view(
                 doc,
                 cluster["members"],
@@ -646,11 +648,17 @@ def plan_views(
 
 
 def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
+               max_edges=DEFAULT_MAX_EDGES, max_degree=DEFAULT_MAX_DEGREE,
                max_detail_nodes=DEFAULT_DETAIL_NODES,
                overview_nodes=DEFAULT_OVERVIEW_NODES,
                context_nodes=DEFAULT_CONTEXT_NODES):
     doc = yaml.safe_load(Path(spec_path).read_text(encoding="utf-8")) or {}
-    needs_split, reasons, metrics = should_split(doc, max_nodes=max_nodes)
+    needs_split, reasons, metrics = should_split(
+        doc,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+        max_degree=max_degree,
+    )
     if not needs_split and not force:
         return {"split": False, "reasons": reasons, "metrics": metrics, "views": []}
 
@@ -670,7 +678,7 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             yaml.safe_dump(view["spec"], sort_keys=False, allow_unicode=True),
             encoding="utf-8",
         )
-        manifest_views.append({
+        manifest_entry = {
             "id": view["id"],
             "label": view["label"],
             "spec": filename,
@@ -678,7 +686,12 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             "coverage_edges": view.get("coverage_edges", []),
             "node_count": len(view["spec"].get("nodes") or []),
             "edge_count": len(view["spec"].get("edges") or []),
-        })
+        }
+        if view.get("cluster_source"):
+            manifest_entry["cluster_source"] = view["cluster_source"]
+        if view.get("cluster_quality"):
+            manifest_entry["cluster_quality"] = copy.deepcopy(view["cluster_quality"])
+        manifest_views.append(manifest_entry)
 
     covered_nodes = {
         str(node.get("id"))
@@ -695,6 +708,11 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
         "source_metrics": metrics,
         "stable_ids": True,
         "invented_architecture_elements": False,
+        "density_thresholds": {
+            "max_nodes": int(max_nodes),
+            "max_edges": int(max_edges),
+            "max_degree": int(max_degree),
+        },
         "budgets": {
             "overview_nodes": int(overview_nodes),
             "detail_core_nodes": int(max_detail_nodes),
@@ -725,6 +743,8 @@ def main():
     ap.add_argument("outdir", type=Path)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--max-nodes", type=int, default=DEFAULT_MAX_NODES)
+    ap.add_argument("--max-edges", type=int, default=DEFAULT_MAX_EDGES)
+    ap.add_argument("--max-degree", type=int, default=DEFAULT_MAX_DEGREE)
     ap.add_argument("--detail-nodes", type=int, default=DEFAULT_DETAIL_NODES)
     ap.add_argument("--overview-nodes", type=int, default=DEFAULT_OVERVIEW_NODES)
     ap.add_argument("--context-nodes", type=int, default=DEFAULT_CONTEXT_NODES)
@@ -732,7 +752,12 @@ def main():
     args = ap.parse_args()
 
     doc = yaml.safe_load(args.spec.read_text(encoding="utf-8")) or {}
-    needs, reasons, metrics = should_split(doc, max_nodes=args.max_nodes)
+    needs, reasons, metrics = should_split(
+        doc,
+        max_nodes=args.max_nodes,
+        max_edges=args.max_edges,
+        max_degree=args.max_degree,
+    )
     print(
         f"DENSITY: nodes={metrics['nodes']} edges={metrics['edges']} "
         f"max_degree={metrics['max_degree']} edges_per_node={metrics['edges_per_node']}"
@@ -746,6 +771,7 @@ def main():
 
     result = write_plan(
         args.spec, args.outdir, force=True, max_nodes=args.max_nodes,
+        max_edges=args.max_edges, max_degree=args.max_degree,
         max_detail_nodes=args.detail_nodes, overview_nodes=args.overview_nodes,
         context_nodes=args.context_nodes,
     )
