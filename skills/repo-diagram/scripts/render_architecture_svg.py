@@ -161,6 +161,17 @@ def main():
     ]
     if not primary_paths and primary_path:
         primary_paths = [primary_path]
+    primary_pairs = {
+        pair
+        for path in primary_paths
+        for pair in zip(path, path[1:])
+    }
+
+    def edge_is_async(edge):
+        return (edge.get("sync") is False) or edge.get("relation") in {
+            "publishes", "emits", "consumes", "async", "event"
+        }
+
     rows, layout_metrics = optimize_rows(
         parse_rows(doc, nodes),
         edges,
@@ -199,6 +210,72 @@ def main():
         ),
     ) + margin*2
     canvas_w = max(760, max(row_widths, default=0)+margin*2, header_w)
+
+    presentation = doc.get("presentation") or {}
+    legend_cfg = presentation.get("legend") or {}
+    legend_show = bool(legend_cfg.get("show"))
+    legend_items = []
+    if legend_show:
+        actual_pairs = {
+            (str(edge.get("from") or ""), str(edge.get("to") or ""))
+            for edge in edges
+        }
+        if primary_pairs & actual_pairs:
+            legend_items.append({
+                "key": "primary-flow",
+                "kind": "edge-primary",
+                "label": "Primary flow",
+            })
+        if any(not edge_is_async(edge) for edge in edges):
+            legend_items.append({
+                "key": "sync",
+                "kind": "edge-sync",
+                "label": "Sync",
+            })
+        if any(edge_is_async(edge) for edge in edges):
+            legend_items.append({
+                "key": "async-event",
+                "kind": "edge-async",
+                "label": "Async / event",
+            })
+
+        present_roles = {node_role(node) for node in nodes}
+        ordered_roles = sorted(
+            present_roles,
+            key=lambda role: (
+                ROLE_ORDER.index(role) if role in ROLE_ORDER else len(ROLE_ORDER),
+                role,
+            ),
+        )
+        for role in ordered_roles:
+            legend_items.append({
+                "key": f"role:{role}",
+                "kind": "role",
+                "role": role,
+                "label": role.replace("-", " ").title(),
+            })
+
+    def legend_item_width(item):
+        return 54 + estimate_text_width(item["label"], 10.5) * text_width_scale
+
+    legend_rows = []
+    if legend_show and legend_items:
+        current = []
+        used = 0.0
+        available = max(240.0, canvas_w - margin*2)
+        for item in legend_items:
+            item = dict(item)
+            item["width"] = legend_item_width(item)
+            if current and used + item["width"] > available:
+                legend_rows.append(current)
+                current = []
+                used = 0.0
+            current.append(item)
+            used += item["width"]
+        if current:
+            legend_rows.append(current)
+
+    legend_h = (48 + len(legend_rows)*28) if legend_show else 20
     y = header
     boxes = {}
     row_index = {}
@@ -214,7 +291,6 @@ def main():
             x += w+node_gap
         y += row_h+row_gap
 
-    legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
     canvas_h = max(420, y-row_gap+margin+legend_h)
 
     out = []
@@ -292,12 +368,6 @@ def main():
         ry = boxes[row["nodes"][0]][1]-18
         out.append(f'<text data-text-role="row-heading" x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
-
-    primary_pairs = {
-        pair
-        for path in primary_paths
-        for pair in zip(path, path[1:])
-    }
 
     def is_primary(edge):
         pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
