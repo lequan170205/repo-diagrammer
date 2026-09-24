@@ -3,6 +3,9 @@
 set -euo pipefail
 if [ "$#" -lt 1 ]; then echo "usage: $0 <diagram.{mmd,puml,dot,md,yaml,yml}> [output.svg]" >&2; exit 2; fi
 input="$1"; output="${2:-${input%.*}.svg}"; ext="${input##*.}"
+native_spec=0
+geometry_gate="advisory"
+crossing_target="0"
 have(){ command -v "$1" >/dev/null 2>&1; }
 case "$ext" in
   mmd)
@@ -26,6 +29,20 @@ case "$ext" in
   yaml|yml)
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if ! have python3; then echo "renderer unavailable: python3" >&2; exit 2; fi
+    native_spec=1
+    policy="$(python3 - "$input" <<'PY'
+import sys
+try:
+    import yaml
+except ImportError:
+    print("required|0")
+    raise SystemExit
+doc = yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}
+layout = doc.get("layout") or {}
+print(f"{layout.get('geometry_gate', 'required')}|{layout.get('crossing_target', 0)}")
+PY
+)"
+    IFS='|' read -r geometry_gate crossing_target <<< "$policy"
     python3 "$script_dir/render_architecture_svg.py" "$input" "$output" ;;
   *) echo "unsupported extension: .$ext" >&2; exit 2 ;;
 esac
@@ -34,5 +51,18 @@ echo "rendered: $output"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$script_dir/visual_lint_svg.py" ] && have python3; then python3 "$script_dir/visual_lint_svg.py" "$output" || true; fi
 if [ -f "$script_dir/visual_analyze_svg.py" ] && have python3; then
-  python3 "$script_dir/visual_analyze_svg.py" "$output" || true
+  if [ "$native_spec" -eq 1 ]; then
+    case "$geometry_gate" in
+      required)
+        python3 "$script_dir/visual_analyze_svg.py" "$output" --strict --max-crossings "$crossing_target" ;;
+      advisory)
+        python3 "$script_dir/visual_analyze_svg.py" "$output" --max-crossings "$crossing_target" || true ;;
+      off)
+        echo "visual analyzer: skipped by layout.geometry_gate=off" ;;
+      *)
+        echo "invalid geometry gate: $geometry_gate" >&2; exit 2 ;;
+    esac
+  else
+    python3 "$script_dir/visual_analyze_svg.py" "$output" || true
+  fi
 fi
