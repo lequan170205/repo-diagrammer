@@ -62,7 +62,9 @@ Automatic splitting is semantics-preserving:
 
 The default generated set is an overview plus bounded detail views. The manifest
 records why splitting happened and explicitly states that stable IDs were preserved
-and no architecture elements were invented.
+and no architecture elements were invented. Before any generated view is rendered,
+`validate_split_set.py` compares every selected node, edge, protocol, sync flag,
+evidence field and complete boundary against the source spec.
 
 Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
 let `render_polished.py` automatically create `<output-stem>.set/` when splitting is
