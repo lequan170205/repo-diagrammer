@@ -125,7 +125,7 @@ preserves semantics.
 Plan layout before source:
 - density budget and whether the view should split;
 - primary story/path;
-- declaration/participant order;
+- declaration/participant order (used as a deterministic ordering hint);
 - real boundaries;
 - presentation-only groups;
 - direction and crossing target;
