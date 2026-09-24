@@ -128,6 +128,17 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
       exit 1
     fi
   }
+
+  accessibility_expect_pass() {
+    local svg="$1"
+    local output
+    shift
+    if ! output="$(python3 "$core/scripts/visual_accessibility.py" "$svg" --strict "$@" 2>&1)"; then
+      echo "expected accessibility pass failed: $svg" >&2
+      echo "$output" >&2
+      exit 1
+    fi
+  }
   cat > "$tmp_visual/architecture.spec.yaml" <<'YAML'
 question: smoke
 type: c4-container
@@ -153,7 +164,7 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
-  python3 "$core/scripts/visual_accessibility.py" "$tmp_visual/architecture.svg" --strict --json "$tmp_visual/architecture.accessibility.json" >/dev/null
+  accessibility_expect_pass "$tmp_visual/architecture.svg" --json "$tmp_visual/architecture.accessibility.json"
   grep -q 'aria-labelledby="diagram-svg-title diagram-svg-desc"' "$tmp_visual/architecture.svg"
   grep -q 'data-node-role="clients"' "$tmp_visual/architecture.svg"
   grep -q 'data-sync="false"' "$tmp_visual/architecture.svg"
@@ -191,7 +202,7 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" --layout-variant 2 --routing-variant 3 >/dev/null
   visual_expect_pass "$tmp_visual/same-row.svg" --max-crossings 0
-  python3 "$core/scripts/visual_accessibility.py" "$tmp_visual/same-row.svg" --strict >/dev/null
+  accessibility_expect_pass "$tmp_visual/same-row.svg"
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
   grep -q 'data-layout-variant="2"' "$tmp_visual/same-row.svg"
   grep -q 'data-routing-variant="3"' "$tmp_visual/same-row.svg"
