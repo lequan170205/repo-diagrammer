@@ -64,6 +64,8 @@ def main():
     ap.add_argument("--no-auto-split", action="store_true",
                     help="render this already-bounded view without density splitting")
     ap.add_argument("--split-dir", type=Path, default=None)
+    ap.add_argument("--require-browser-typography", action="store_true",
+                    help="fail when browser typography verification is unavailable")
     args = ap.parse_args()
 
     script_dir = Path(__file__).resolve().parent
@@ -145,6 +147,8 @@ def main():
                 ]
                 if args.keep_attempts:
                     cmd.append("--keep-attempts")
+                if args.require_browser_typography:
+                    cmd.append("--require-browser-typography")
                 rendered_view = run(cmd)
                 if rendered_view.returncode != 0:
                     print(rendered_view.stdout, end="")
@@ -171,8 +175,10 @@ def main():
 
     renderer = script_dir / "render_architecture_svg.py"
     analyzer = script_dir / "visual_analyze_svg.py"
+    typography = script_dir / "browser_typography.py"
 
     scales = [1.0, 1.12, 1.28, 1.48, 1.7][:max(1, args.max_passes)]
+    text_scales = [1.0, 1.06, 1.12, 1.22, 1.35][:max(1, args.max_passes)]
     attempts_root = args.output.parent / (args.output.stem + ".repair-attempts")
 
     with tempfile.TemporaryDirectory(prefix="repo-diagrammer-repair-") as tmp:
@@ -181,13 +187,17 @@ def main():
         best = None
         best_blocking = 10**9
 
+        typography_status = "unverified"
         for idx, scale in enumerate(scales, start=1):
+            text_scale = text_scales[min(idx-1, len(text_scales)-1)]
             svg = tmpdir / f"pass-{idx}.svg"
             report = tmpdir / f"pass-{idx}.json"
+            typography_report = tmpdir / f"pass-{idx}.typography.json"
 
             rendered = run([
                 sys.executable, str(renderer), str(args.spec), str(svg),
                 "--spacing-scale", str(scale),
+                "--text-width-scale", str(text_scale),
             ])
             if rendered.returncode != 0:
                 print(rendered.stdout, end="")
@@ -210,15 +220,68 @@ def main():
 
             print(
                 f"AUTO-REPAIR pass {idx}/{len(scales)}: spacing={scale:.2f}, "
+                f"text-scale={text_scale:.2f}, "
                 f"blocking={len(blocking)}, crossings={data.get('crossings', '?')}"
             )
             for finding in blocking:
                 print(f"  BLOCKING {finding.get('code')}: {finding.get('message')}")
 
             if checked.returncode == 0:
+                typography_cmd = [
+                    sys.executable, str(typography), str(svg), "--strict",
+                    "--json", str(typography_report),
+                ]
+                if args.require_browser_typography:
+                    typography_cmd.append("--required")
+                typography_checked = run(typography_cmd)
+                typography_data = (
+                    json.loads(typography_report.read_text(encoding="utf-8"))
+                    if typography_report.exists() else {}
+                )
+
+                if typography_checked.returncode == 1:
+                    typography_findings = [
+                        f for f in (typography_data.get("findings") or [])
+                        if f.get("severity") == "blocking"
+                    ]
+                    print(
+                        f"AUTO-REPAIR typography pass {idx}: text-scale={text_scale:.2f}, "
+                        f"blocking={len(typography_findings)}"
+                    )
+                    for finding in typography_findings:
+                        print(
+                            f"  BLOCKING {finding.get('code')}: "
+                            f"{finding.get('message')}"
+                        )
+                    last_findings = typography_findings
+                    continue
+
+                if typography_checked.returncode == 2:
+                    if args.require_browser_typography:
+                        print(typography_checked.stdout, end="")
+                        print(typography_checked.stderr, end="", file=sys.stderr)
+                        return 2
+                    print(
+                        "AUTO-REPAIR WARNING: browser typography verification unavailable; "
+                        "glyph estimator remains the fallback."
+                    )
+                    typography_status = "fallback-estimator"
+                else:
+                    if typography_data.get("available") is False:
+                        print(
+                            "AUTO-REPAIR WARNING: browser typography verification unavailable; "
+                            "glyph estimator remains the fallback."
+                        )
+                        typography_status = "fallback-estimator"
+                    else:
+                        typography_status = "browser-verified"
+
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(svg, args.output)
-                print(f"AUTO-REPAIR PASS: {args.output} after {idx} pass(es)")
+                print(
+                    f"AUTO-REPAIR PASS: {args.output} after {idx} pass(es); "
+                    f"typography={typography_status}"
+                )
                 if args.keep_attempts:
                     attempts_root.mkdir(parents=True, exist_ok=True)
                     for candidate in tmpdir.iterdir():
