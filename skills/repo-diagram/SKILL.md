@@ -151,8 +151,13 @@ expanded into an overview plus bounded detail views under `<output-stem>.set/`, 
 using stable source IDs and no invented architecture elements. Each generated view is
 then rendered through the strict geometry gate and presentation-only repair loop.
 
+When Chrome/Chromium is available, the same loop measures actual SVG text bounds in a
+headless browser and retries with more conservative text sizing if needed. If browser
+measurement is unavailable, disclose that typography used the estimator fallback.
+
 It stops instead of mutating the model when a defect requires grouping/model
-correction. Never mark visual review passed while a Blocking geometry defect remains.
+correction. Never mark visual review passed while a Blocking geometry or browser-text
+defect remains.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 
