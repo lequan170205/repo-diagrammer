@@ -369,7 +369,7 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
                       for c, d in zip(e2.points, e2.points[1:]))
             if hit and key not in crossing_pairs:
                 crossing_pairs.add(key)
-                findings.append(Finding(sev(), "EDGE_EDGE_CROSSING",
+                findings.append(Finding("warning", "EDGE_EDGE_CROSSING",
                                         f"edges {e1.id} and {e2.id} cross", list(key)))
             overlap_len = max(
                 [seg_overlap_length(a, b, c, d)
@@ -412,10 +412,13 @@ def main():
     boxes, labels, edges, native = extract(root)
     findings = analyze(root, boxes, labels, edges, native, args.strict_heuristic)
     crossings = sum(1 for f in findings if f.code == "EDGE_EDGE_CROSSING")
-    if args.max_crossings is not None and crossings > args.max_crossings:
+    crossing_budget = args.max_crossings
+    if crossing_budget is None:
+        crossing_budget = 0 if len(boxes) <= 10 else 2
+    if crossings > crossing_budget:
         findings.append(Finding("blocking" if native or args.strict_heuristic else "warning",
                                 "CROSSING_BUDGET",
-                                f"{crossings} edge crossings exceeds budget {args.max_crossings}", []))
+                                f"{crossings} edge crossings exceeds budget {crossing_budget}", []))
 
     report = {
         "file": str(args.svg),
@@ -424,6 +427,7 @@ def main():
         "labels": len(labels),
         "edges": len(edges),
         "crossings": crossings,
+        "crossing_budget": crossing_budget,
         "findings": [asdict(f) for f in findings],
     }
     print(f"VISUAL-ANALYZER: {args.svg.name} — {len(boxes)} nodes, {len(labels)} labels, {len(edges)} edges, geometry={report['geometry']}")
