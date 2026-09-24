@@ -24,6 +24,8 @@ except ImportError:
 from density_planner import (
     DEFAULT_CONTEXT_NODES,
     DEFAULT_DETAIL_NODES,
+    DEFAULT_MAX_DEGREE,
+    DEFAULT_MAX_EDGES,
     DEFAULT_MAX_NODES,
     DEFAULT_OVERVIEW_NODES,
     should_split,
@@ -90,12 +92,19 @@ def main():
         auto_split_cfg = {}
     enabled = bool(auto_split_cfg.get("enabled", True))
     max_nodes = int(auto_split_cfg.get("max_nodes", DEFAULT_MAX_NODES) or DEFAULT_MAX_NODES)
+    max_edges = int(auto_split_cfg.get("max_edges", DEFAULT_MAX_EDGES) or DEFAULT_MAX_EDGES)
+    max_degree = int(auto_split_cfg.get("max_degree", DEFAULT_MAX_DEGREE) or DEFAULT_MAX_DEGREE)
     detail_nodes = int(auto_split_cfg.get("detail_nodes", DEFAULT_DETAIL_NODES) or DEFAULT_DETAIL_NODES)
     overview_nodes = int(auto_split_cfg.get("overview_nodes", DEFAULT_OVERVIEW_NODES) or DEFAULT_OVERVIEW_NODES)
     context_nodes = int(auto_split_cfg.get("context_nodes", DEFAULT_CONTEXT_NODES) or DEFAULT_CONTEXT_NODES)
 
     if enabled and not args.no_auto_split:
-        needs_split, reasons, metrics = should_split(doc, max_nodes=max_nodes)
+        needs_split, reasons, metrics = should_split(
+            doc,
+            max_nodes=max_nodes,
+            max_edges=max_edges,
+            max_degree=max_degree,
+        )
         if needs_split:
             split_dir = args.split_dir or (args.output.parent / f"{args.output.stem}.set")
             result = write_plan(
@@ -103,6 +112,8 @@ def main():
                 split_dir,
                 force=True,
                 max_nodes=max_nodes,
+                max_edges=max_edges,
+                max_degree=max_degree,
                 max_detail_nodes=detail_nodes,
                 overview_nodes=overview_nodes,
                 context_nodes=context_nodes,
@@ -161,6 +172,11 @@ def main():
                 "enabled": True,
                 "reasons": reasons,
                 "source_metrics": metrics,
+                "thresholds": {
+                    "max_nodes": max_nodes,
+                    "max_edges": max_edges,
+                    "max_degree": max_degree,
+                },
                 "overview_output": str(args.output),
             }
             manifest_path.write_text(

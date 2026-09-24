@@ -42,6 +42,44 @@ def longest_run(runs):
     return max(enumerate(runs), key=lambda item: (len(item[1]), -item[0]))[1]
 
 
+def core_quality(node_ids, source_edges):
+    core = set(str(x) for x in node_ids)
+    adjacency = {nid: set() for nid in core}
+    internal_edges = 0
+    boundary_edges = 0
+    for edge in source_edges.values():
+        a, b = str(edge.get("from")), str(edge.get("to"))
+        a_in, b_in = a in core, b in core
+        if a_in and b_in:
+            internal_edges += 1
+            adjacency[a].add(b)
+            adjacency[b].add(a)
+        elif a_in ^ b_in:
+            boundary_edges += 1
+
+    unseen = set(core)
+    components = 0
+    while unseen:
+        components += 1
+        start = next(iter(unseen))
+        stack = [start]
+        unseen.remove(start)
+        while stack:
+            nid = stack.pop()
+            for neighbor in adjacency.get(nid, set()) & unseen:
+                unseen.remove(neighbor)
+                stack.append(neighbor)
+
+    denominator = internal_edges + boundary_edges
+    cohesion = round(internal_edges / denominator, 4) if denominator else 1.0
+    return {
+        "connected_components": components,
+        "internal_edges": internal_edges,
+        "boundary_edges": boundary_edges,
+        "cohesion": cohesion,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("source", type=Path)
@@ -83,6 +121,24 @@ def main():
             errors.append(
                 f"manifest.budgets missing field(s): {sorted(missing_budget_fields)}"
             )
+
+    density_thresholds = manifest.get("density_thresholds") or {}
+    required_density_fields = {"max_nodes", "max_edges", "max_degree"}
+    if not isinstance(density_thresholds, dict):
+        errors.append("manifest.density_thresholds must be a mapping")
+        density_thresholds = {}
+    else:
+        missing_density_fields = required_density_fields - set(density_thresholds)
+        if missing_density_fields:
+            errors.append(
+                f"manifest.density_thresholds missing field(s): {sorted(missing_density_fields)}"
+            )
+        for field in sorted(required_density_fields):
+            value = density_thresholds.get(field)
+            if not isinstance(value, int) or value <= 0:
+                errors.append(
+                    f"manifest.density_thresholds.{field}: expected positive integer, got {value!r}"
+                )
 
     seen_view_ids = set()
     seen_spec_paths = set()
@@ -209,6 +265,13 @@ def main():
                 errors.append(
                     f"{vid}: {node_count} nodes exceeds integration budget {limit}"
                 )
+            integration_core = {str(x) for x in (view.get("core_nodes") or [])}
+            quality = core_quality(integration_core, source_edges)
+            if len(integration_core) > 1 and quality["connected_components"] != 1:
+                errors.append(
+                    f"{vid}: integration core is disconnected "
+                    f"({quality['connected_components']} components)"
+                )
         else:
             total_limit = budgets.get("detail_total_nodes")
             core_limit = budgets.get("detail_core_nodes")
@@ -222,6 +285,22 @@ def main():
                 errors.append(
                     f"{vid}: {len(core_nodes)} core nodes exceeds detail core budget {core_limit}"
                 )
+
+            expected_quality = core_quality(core_nodes, source_edges)
+            declared_quality = view.get("cluster_quality")
+            if declared_quality != expected_quality:
+                errors.append(
+                    f"{vid}: cluster_quality mismatch; "
+                    f"expected {expected_quality!r}, got {declared_quality!r}"
+                )
+            if len(core_nodes) > 1 and expected_quality["connected_components"] != 1:
+                errors.append(
+                    f"{vid}: detail core is disconnected "
+                    f"({expected_quality['connected_components']} components)"
+                )
+            if not str(view.get("cluster_source") or "").strip():
+                errors.append(f"{vid}: missing cluster_source provenance")
+
             declared_context = {
                 str(x) for x in ((doc.get("view") or {}).get("context_nodes") or [])
             }

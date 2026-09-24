@@ -144,26 +144,71 @@ def _seed_clusters(doc):
     return clusters
 
 
-def _split_members(members, adjacency, degree, max_size):
+def _connected_components(members, adjacency):
+    """Return deterministic connected components inside one semantic seed."""
+    allowed = set(members)
+    unseen = set(members)
+    components = []
+    while unseen:
+        start = min(unseen)
+        stack = [start]
+        unseen.remove(start)
+        component = []
+        while stack:
+            nid = stack.pop()
+            component.append(nid)
+            neighbors = sorted(
+                (adjacency.get(nid, set()) & allowed) & unseen,
+                reverse=True,
+            )
+            for neighbor in neighbors:
+                unseen.remove(neighbor)
+                stack.append(neighbor)
+        components.append(sorted(component))
+    components.sort(key=lambda xs: (-len(xs), xs[0] if xs else ""))
+    return components
+
+
+def _split_connected_component(members, adjacency, degree, max_size):
     remaining = set(members)
     chunks = []
+    member_set = set(members)
     while remaining:
         seed = max(remaining, key=lambda x: (degree.get(x, 0), x))
         chunk = [seed]
         remaining.remove(seed)
+        frontier = set(adjacency.get(seed, set())) & remaining
         while remaining and len(chunk) < max_size:
+            candidates = frontier or {
+                nid for nid in remaining
+                if any(x in adjacency.get(nid, set()) for x in chunk)
+            }
+            if not candidates:
+                break
+
             def affinity(nid):
                 links = sum(1 for x in chunk if x in adjacency.get(nid, set()))
-                chunk_neighbor_degree = sum(
-                    1 for x in adjacency.get(nid, set()) if x in set(members)
+                component_degree = sum(
+                    1 for x in adjacency.get(nid, set()) if x in member_set
                 )
-                return (links, chunk_neighbor_degree, degree.get(nid, 0), nid)
-            candidate = max(remaining, key=affinity)
-            # Prefer connected growth. If none connect, deterministic fill is still better
-            # than leaving many singleton fragments from the same semantic seed.
+                return (links, component_degree, degree.get(nid, 0), nid)
+
+            candidate = max(candidates, key=affinity)
             chunk.append(candidate)
             remaining.remove(candidate)
-        chunks.append(chunk)
+            frontier.discard(candidate)
+            frontier.update(adjacency.get(candidate, set()) & remaining)
+        chunks.append(sorted(chunk))
+    return chunks
+
+
+def _split_members(members, adjacency, degree, max_size):
+    """Split a seed without mixing disconnected graph components."""
+    chunks = []
+    for component in _connected_components(members, adjacency):
+        chunks.extend(
+            _split_connected_component(component, adjacency, degree, max_size)
+        )
     return chunks
 
 
@@ -206,12 +251,17 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
                     j,
                 ))
             if candidates:
-                _, _, j = max(candidates)
-                if j == i:
+                cross_edges, _, j = max(candidates)
+                if cross_edges <= 0 or j == i:
                     continue
                 target = expanded[j]
                 target["members"].extend(cluster["members"])
                 target["members"] = sorted(set(target["members"]))
+                target["source"] = (
+                    target["source"]
+                    if target["source"] == cluster["source"]
+                    else "graph-connected-merge"
+                )
                 expanded.pop(i)
                 changed = True
                 break
@@ -228,6 +278,23 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
     )
     for idx, cluster in enumerate(expanded, start=1):
         cluster["id"] = f"view-{idx:02d}-{slugify(cluster['label'])}"
+        members = set(cluster["members"])
+        internal_edges = sum(
+            1 for edge in edges
+            if str(edge["from"]) in members and str(edge["to"]) in members
+        )
+        boundary_edges = sum(
+            1 for edge in edges
+            if (str(edge["from"]) in members) ^ (str(edge["to"]) in members)
+        )
+        components = _connected_components(cluster["members"], adjacency)
+        denominator = internal_edges + boundary_edges
+        cluster["quality"] = {
+            "connected_components": len(components),
+            "internal_edges": internal_edges,
+            "boundary_edges": boundary_edges,
+            "cohesion": round(internal_edges / denominator, 4) if denominator else 1.0,
+        }
     return expanded
 
 
@@ -531,6 +598,8 @@ def plan_views(
             "id": cluster["id"],
             "label": cluster["label"],
             "core": list(cluster["members"]),
+            "cluster_source": cluster.get("source"),
+            "cluster_quality": copy.deepcopy(cluster.get("quality") or {}),
             "spec": make_view(
                 doc,
                 cluster["members"],
@@ -579,11 +648,17 @@ def plan_views(
 
 
 def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
+               max_edges=DEFAULT_MAX_EDGES, max_degree=DEFAULT_MAX_DEGREE,
                max_detail_nodes=DEFAULT_DETAIL_NODES,
                overview_nodes=DEFAULT_OVERVIEW_NODES,
                context_nodes=DEFAULT_CONTEXT_NODES):
     doc = yaml.safe_load(Path(spec_path).read_text(encoding="utf-8")) or {}
-    needs_split, reasons, metrics = should_split(doc, max_nodes=max_nodes)
+    needs_split, reasons, metrics = should_split(
+        doc,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+        max_degree=max_degree,
+    )
     if not needs_split and not force:
         return {"split": False, "reasons": reasons, "metrics": metrics, "views": []}
 
@@ -603,7 +678,7 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             yaml.safe_dump(view["spec"], sort_keys=False, allow_unicode=True),
             encoding="utf-8",
         )
-        manifest_views.append({
+        manifest_entry = {
             "id": view["id"],
             "label": view["label"],
             "spec": filename,
@@ -611,7 +686,12 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             "coverage_edges": view.get("coverage_edges", []),
             "node_count": len(view["spec"].get("nodes") or []),
             "edge_count": len(view["spec"].get("edges") or []),
-        })
+        }
+        if view.get("cluster_source"):
+            manifest_entry["cluster_source"] = view["cluster_source"]
+        if view.get("cluster_quality"):
+            manifest_entry["cluster_quality"] = copy.deepcopy(view["cluster_quality"])
+        manifest_views.append(manifest_entry)
 
     covered_nodes = {
         str(node.get("id"))
@@ -628,6 +708,11 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
         "source_metrics": metrics,
         "stable_ids": True,
         "invented_architecture_elements": False,
+        "density_thresholds": {
+            "max_nodes": int(max_nodes),
+            "max_edges": int(max_edges),
+            "max_degree": int(max_degree),
+        },
         "budgets": {
             "overview_nodes": int(overview_nodes),
             "detail_core_nodes": int(max_detail_nodes),
@@ -658,6 +743,8 @@ def main():
     ap.add_argument("outdir", type=Path)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--max-nodes", type=int, default=DEFAULT_MAX_NODES)
+    ap.add_argument("--max-edges", type=int, default=DEFAULT_MAX_EDGES)
+    ap.add_argument("--max-degree", type=int, default=DEFAULT_MAX_DEGREE)
     ap.add_argument("--detail-nodes", type=int, default=DEFAULT_DETAIL_NODES)
     ap.add_argument("--overview-nodes", type=int, default=DEFAULT_OVERVIEW_NODES)
     ap.add_argument("--context-nodes", type=int, default=DEFAULT_CONTEXT_NODES)
@@ -665,7 +752,12 @@ def main():
     args = ap.parse_args()
 
     doc = yaml.safe_load(args.spec.read_text(encoding="utf-8")) or {}
-    needs, reasons, metrics = should_split(doc, max_nodes=args.max_nodes)
+    needs, reasons, metrics = should_split(
+        doc,
+        max_nodes=args.max_nodes,
+        max_edges=args.max_edges,
+        max_degree=args.max_degree,
+    )
     print(
         f"DENSITY: nodes={metrics['nodes']} edges={metrics['edges']} "
         f"max_degree={metrics['max_degree']} edges_per_node={metrics['edges_per_node']}"
@@ -679,6 +771,7 @@ def main():
 
     result = write_plan(
         args.spec, args.outdir, force=True, max_nodes=args.max_nodes,
+        max_edges=args.max_edges, max_degree=args.max_degree,
         max_detail_nodes=args.detail_nodes, overview_nodes=args.overview_nodes,
         context_nodes=args.context_nodes,
     )

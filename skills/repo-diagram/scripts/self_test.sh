@@ -608,6 +608,10 @@ assert len(views) >= 3, views
 assert views[0]["id"] == "overview"
 assert manifest["stable_ids"] is True
 assert manifest["invented_architecture_elements"] is False
+thresholds = manifest.get("density_thresholds") or {}
+assert thresholds["max_nodes"] == 20, thresholds
+assert thresholds["max_edges"] == 32, thresholds
+assert thresholds["max_degree"] == 9, thresholds
 budgets = manifest.get("budgets") or {}
 assert budgets["overview_nodes"] == 10, budgets
 assert budgets["detail_core_nodes"] == 8, budgets
@@ -634,11 +638,62 @@ for view in views:
         assert view["node_count"] <= budgets["integration_nodes"], view
     else:
         assert view["node_count"] <= budgets["detail_total_nodes"], view
+        assert view["cluster_source"], view
+        quality = view["cluster_quality"]
+        assert quality["connected_components"] == 1, view
+        assert 0.0 <= quality["cohesion"] <= 1.0, view
 PY
 
   while IFS= read -r spec; do
     python3 "$core/scripts/validate_spec.py" "$spec" >/dev/null
   done < <(find "$tmp_visual/dense.set" -name '*.spec.yaml' -type f | sort)
+
+  # Same-role but disconnected components must remain separate detail views.
+  cat > "$tmp_visual/disconnected.spec.yaml" <<'YAML'
+question: disconnected semantic role split
+type: c4-container
+scope: self-test disconnected
+nodes:
+  - {id: a, label: A, semantic_role: domain, evidence: ["test:a"]}
+  - {id: b, label: B, semantic_role: domain, evidence: ["test:b"]}
+  - {id: c, label: C, semantic_role: domain, evidence: ["test:c"]}
+  - {id: d, label: D, semantic_role: domain, evidence: ["test:d"]}
+edges:
+  - {id: ab, from: a, to: b, relation: calls, evidence: ["test:ab"]}
+  - {id: cd, from: c, to: d, relation: calls, evidence: ["test:cd"]}
+view:
+  profile: architecture
+presentation:
+  style: polished-overview
+  title: Disconnected
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/density_planner.py" "$tmp_visual/disconnected.spec.yaml" "$tmp_visual/disconnected.set" --force --max-nodes 99 --max-edges 99 --max-degree 99 --detail-nodes 4 --overview-nodes 2 --context-nodes 0 >/dev/null
+  python3 "$core/scripts/validate_split_set.py" "$tmp_visual/disconnected.spec.yaml" "$tmp_visual/disconnected.set/diagram-set.yaml" >/dev/null
+  python3 - "$tmp_visual/disconnected.set/diagram-set.yaml" <<'PY'
+import sys, yaml
+manifest = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+details = [
+    v for v in manifest["views"]
+    if v["id"] != "overview" and not str(v["id"]).startswith("integration-")
+]
+cores = {frozenset(v["core_nodes"]) for v in details}
+assert frozenset({"a", "b"}) in cores, details
+assert frozenset({"c", "d"}) in cores, details
+assert frozenset({"a", "b", "c", "d"}) not in cores, details
+assert all(v["cluster_quality"]["connected_components"] == 1 for v in details), details
+PY
+
+  # Density threshold knobs must be honored independently of max_nodes.
+  if python3 "$core/scripts/density_planner.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/threshold-check" --check --max-nodes 99 --max-edges 10 --max-degree 99 >"$tmp_visual/threshold.out" 2>&1; then
+    echo "expected edge threshold alone to request splitting" >&2
+    exit 1
+  else
+    status=$?
+    [ "$status" -eq 3 ] || { cat "$tmp_visual/threshold.out" >&2; exit "$status"; }
+  fi
+  grep -q 'edges ' "$tmp_visual/threshold.out"
 
   rm -rf "$tmp_visual"
 fi
