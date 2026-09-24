@@ -140,14 +140,15 @@ bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any
 ```
 
 For static high-level architecture with `presentation.style: polished-overview`,
-prefer the geometry-owned renderer:
+render from the spec through the wrapper:
 ```bash
-python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_architecture_svg.py" path/to/<slug>.spec.yaml path/to/<slug>.svg
-python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/visual_analyze_svg.py" path/to/<slug>.svg --strict --max-crossings 0
+bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/<slug>.spec.yaml path/to/<slug>.svg
 ```
 
-If the geometry gate reports a Blocking defect, repair layout/routing and render again.
-Never mark visual review passed while an edge crosses an unrelated node.
+The wrapper honors `layout.geometry_gate` and `layout.crossing_target`. With
+`geometry_gate: required`, a Blocking geometry defect makes rendering fail. Repair
+layout/routing and render again rather than weakening the gate. Never mark visual
+review passed while an edge crosses an unrelated node.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 
