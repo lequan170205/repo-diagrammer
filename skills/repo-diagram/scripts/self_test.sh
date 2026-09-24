@@ -9,6 +9,7 @@ required=(
   "$core/assets/spec.template.yaml"
   "$core/references/semantic-ir.md"
   "$core/references/renderer-strategy.md"
+  "$core/references/visual-compiler.md"
   "$core/references/profiles/architecture.md"
   "$core/references/profiles/sequence.md"
   "$core/references/profiles/class.md"
@@ -31,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -66,6 +67,46 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_fail "$core/tests/fixtures/invalid-strict-iso42010.spec.yaml"
 fi
 
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+  tmp_visual="$(mktemp -d)"
+  cat > "$tmp_visual/architecture.spec.yaml" <<'YAML'
+question: smoke
+type: c4-container
+scope: self-test
+nodes:
+  - {id: client, label: Client, semantic_role: clients, evidence: ["test"]}
+  - {id: api, label: API, semantic_role: api, evidence: ["test"]}
+  - {id: broker, label: Broker, semantic_role: messaging, evidence: ["test"]}
+  - {id: db, label: DB, semantic_role: data, evidence: ["test"]}
+edges:
+  - {id: e1, from: client, to: api, relation: calls, sync: true, evidence: ["test"]}
+  - {id: e2, from: api, to: db, relation: writes, sync: true, evidence: ["test"]}
+  - {id: e3, from: api, to: broker, relation: publishes, sync: false, evidence: ["test"]}
+presentation:
+  style: polished-overview
+  title: Smoke Architecture
+  legend: {show: true}
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/architecture.svg" --strict --max-crossings 0 >/dev/null
+
+  cat > "$tmp_visual/bad.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
+  <g data-node-id="a"><rect x="20" y="20" width="80" height="50"/></g>
+  <g data-node-id="b"><rect x="110" y="65" width="80" height="50"/></g>
+  <g data-node-id="c"><rect x="200" y="110" width="80" height="50"/></g>
+  <g data-edge-id="e" data-source-id="a" data-target-id="c"><path d="M 60,45 L 240,135"/></g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/bad.svg" --strict >/dev/null 2>&1; then
+    echo "expected geometry defect was not detected" >&2
+    exit 1
+  fi
+  rm -rf "$tmp_visual"
+fi
+
 if command -v dot >/dev/null 2>&1; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
@@ -77,6 +118,7 @@ fi
 grep -q "No evidence, no element" "$core/SKILL.md"
 grep -q "semantic-ir.md" "$core/SKILL.md"
 grep -q "renderer-strategy.md" "$core/SKILL.md"
+grep -q "visual-compiler.md" "$core/SKILL.md"
 grep -q "validate_spec.py" "$core/SKILL.md"
 grep -q "visual review" "$core/references/diagram-reviewer-procedure.md"
 grep -q "textbook-strict" "$core/SKILL.md"
