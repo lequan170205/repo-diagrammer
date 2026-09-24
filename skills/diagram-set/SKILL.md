@@ -17,6 +17,9 @@ description: Generate a coherent repository diagram set from one shared evidence
    and validate every selected node/relation against the shared model. The complete
    generated set must cover every source node and relation at least once; use bounded
    integration views for cross-cluster relations that do not fit detail context.
+   Evidence-backed boundaries must also be covered truthfully: generate a dedicated
+   full-membership boundary view when it fits the budget, otherwise disclose the
+   oversized boundary in the manifest. Never render a partial real boundary.
 8. Cross-view consistency gate: names, kinds, relation direction/semantics, real
    boundaries, palette/legend meaning.
 9. Deliver an ordered `docs/diagrams/README.md`.
