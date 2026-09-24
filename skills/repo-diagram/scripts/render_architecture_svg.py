@@ -303,7 +303,10 @@ def main():
 
     route_lane_count = {}
     existing_routes = []
-    placed_labels = []
+    routed_edges = []
+
+    # Phase 1: route every edge. Labels are deliberately deferred because a label
+    # cannot avoid an edge that has not been routed yet.
     for ei, e in ordered_edges:
         sid, tid = e["from"], e["to"]
         if sid not in boxes or tid not in boxes:
@@ -319,7 +322,16 @@ def main():
         )
         if len(pts) < 2:
             continue
+        record = {"id": eid, "source": sid, "target": tid, "points": pts, "edge": e}
+        existing_routes.append(record)
+        routed_edges.append(record)
 
+    # Phase 2: render all routed edges now that global route geometry is known.
+    for record in routed_edges:
+        e = record["edge"]
+        eid = record["id"]
+        sid, tid = record["source"], record["target"]
+        pts = record["points"]
         dashed = (e.get("sync") is False) or e.get("relation") in {
             "publishes", "emits", "consumes", "async", "event"
         }
@@ -333,21 +345,26 @@ def main():
                    f'data-target-id="{esc(tid)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
                    f'stroke-width="{stroke_width}"{dash} marker-end="url(#arrow)"/></g>')
 
-        existing_routes.append({"id": eid, "source": sid, "target": tid, "points": pts})
-
+    # Phase 3: place labels against the complete edge set.
+    placed_labels = []
+    for record in routed_edges:
+        e = record["edge"]
+        eid = record["id"]
+        pts = record["points"]
         label = str(e.get("label") or e.get("protocol") or "").strip()
-        if label:
-            lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
-            lh = 20
-            lx, ly, _, _ = place_label(
-                pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
-            )
-            placed_labels.append((lx, ly, lw, lh))
-            out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
-                       f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
-                       'fill="#FFFFFF" fill-opacity="0.94"/>'
-                       f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
-                       f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
+        if not label:
+            continue
+        lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
+        lh = 20
+        lx, ly, _, _ = place_label(
+            pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
+        )
+        placed_labels.append((lx, ly, lw, lh))
+        out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
+                   f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
+                   'fill="#FFFFFF" fill-opacity="0.94"/>'
+                   f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
 
     for nid, (x, yy, w, h) in boxes.items():
         node = nmap[nid]
