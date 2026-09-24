@@ -55,6 +55,68 @@ def run(cmd):
     return subprocess.run(cmd, text=True, capture_output=True)
 
 
+def quality_report_path(svg_path: Path) -> Path:
+    return svg_path.with_suffix(".quality.json")
+
+
+def write_quality_report(
+    *,
+    spec_path: Path,
+    svg_path: Path,
+    geometry_report: dict,
+    typography_report: dict,
+    typography_status: str,
+    browser_required: bool,
+    repair_pass: int,
+    max_passes: int,
+    spacing_scale: float,
+    text_scale: float,
+    layout_variant: int,
+    routing_variant: int,
+):
+    geometry_findings = geometry_report.get("findings") or []
+    typography_findings = typography_report.get("findings") or []
+    geometry_blocking = [
+        f for f in geometry_findings if f.get("severity") == "blocking"
+    ]
+    typography_blocking = [
+        f for f in typography_findings if f.get("severity") == "blocking"
+    ]
+    report = {
+        "schema_version": 1,
+        "spec": str(spec_path),
+        "svg": str(svg_path),
+        "semantic_validation": {"status": "passed"},
+        "geometry": {
+            "status": "passed" if not geometry_blocking else "failed",
+            "crossings": geometry_report.get("crossings"),
+            "geometry": geometry_report.get("geometry"),
+            "findings": geometry_findings,
+        },
+        "typography": {
+            "status": typography_status,
+            "required": bool(browser_required),
+            "available": typography_report.get("available"),
+            "browser": typography_report.get("browser"),
+            "findings": typography_findings,
+        },
+        "repair": {
+            "pass": repair_pass,
+            "max_passes": max_passes,
+            "spacing_scale": round(spacing_scale, 3),
+            "text_width_scale": round(text_scale, 3),
+            "layout_variant": int(layout_variant),
+            "routing_variant": int(routing_variant),
+        },
+        "machine_gates_passed": not geometry_blocking and not typography_blocking,
+        "human_visual_review_required": True,
+    }
+    path = quality_report_path(svg_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return path, report
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("spec", type=Path)
@@ -157,6 +219,37 @@ def main():
                 entry = manifest_by_id.get(view_id)
                 if entry is not None:
                     entry["svg"] = str(svg_path.name if svg_path.parent == split_dir else svg_path)
+                    quality_path = quality_report_path(svg_path)
+                    if not quality_path.exists():
+                        print(
+                            f"AUTO-SPLIT STOP: missing quality report for {view_id}: "
+                            f"{quality_path}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    quality = json.loads(quality_path.read_text(encoding="utf-8"))
+                    if quality.get("machine_gates_passed") is not True:
+                        print(
+                            f"AUTO-SPLIT STOP: machine quality gate did not pass for {view_id}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    entry["quality_report"] = str(
+                        quality_path.name if quality_path.parent == split_dir else quality_path
+                    )
+                    entry["quality"] = {
+                        "machine_gates_passed": True,
+                        "typography": (quality.get("typography") or {}).get("status"),
+                        "repair_pass": (quality.get("repair") or {}).get("pass"),
+                        "human_visual_review_required": True,
+                    }
+            manifest["quality"] = {
+                "all_views_machine_passed": all(
+                    (entry.get("quality") or {}).get("machine_gates_passed") is True
+                    for entry in (manifest.get("views") or [])
+                ),
+                "human_visual_review_required": True,
+            }
             manifest["auto_split"] = {
                 "enabled": True,
                 "reasons": reasons,
@@ -311,9 +404,29 @@ def main():
 
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(svg, args.output)
+                quality_path, quality = write_quality_report(
+                    spec_path=args.spec,
+                    svg_path=args.output,
+                    geometry_report=data,
+                    typography_report=typography_data,
+                    typography_status=typography_status,
+                    browser_required=args.require_browser_typography,
+                    repair_pass=idx,
+                    max_passes=max_passes,
+                    spacing_scale=spacing_scale,
+                    text_scale=text_scale,
+                    layout_variant=layout_variant,
+                    routing_variant=routing_variant,
+                )
+                if quality.get("machine_gates_passed") is not True:
+                    print(
+                        "AUTO-REPAIR STOP: quality report contains a failed machine gate.",
+                        file=sys.stderr,
+                    )
+                    return 1
                 print(
                     f"AUTO-REPAIR PASS: {args.output} after {idx} pass(es); "
-                    f"typography={typography_status}"
+                    f"typography={typography_status}; quality={quality_path}"
                 )
                 if args.keep_attempts:
                     attempts_root.mkdir(parents=True, exist_ok=True)
