@@ -54,6 +54,10 @@ def main():
     source_nodes = by_id(source.get("nodes"))
     source_edges = by_id(source.get("edges"))
     source_boundaries = by_id(source.get("boundaries"))
+    source_groups = [
+        g for g in ((source.get("presentation") or {}).get("groups") or [])
+        if isinstance(g, dict)
+    ]
     source_primary = [str(x) for x in ((source.get("view") or {}).get("primary_path") or [])]
     errors = []
 
@@ -114,6 +118,19 @@ def main():
         nodes = by_id(doc.get("nodes"))
         edges = by_id(doc.get("edges"))
         boundaries = by_id(doc.get("boundaries"))
+        groups = [
+            g for g in ((doc.get("presentation") or {}).get("groups") or [])
+            if isinstance(g, dict)
+        ]
+
+        # Derived views may alter scope/title/layout/view metadata, but immutable
+        # source identity and conformance metadata must survive verbatim.
+        for field in ("question", "type", "audience", "commit", "conformance",
+                      "architecture_description", "gaps"):
+            if doc.get(field) != source.get(field):
+                errors.append(
+                    f"{vid}: immutable source field {field!r} changed during split"
+                )
 
         if view.get("node_count") != len(nodes):
             errors.append(
@@ -159,6 +176,13 @@ def main():
                 errors.append(
                     f"{vid}: boundary {bid!r} differs from source element; "
                     "real boundaries must be reused verbatim"
+                )
+
+        for group in groups:
+            if group not in source_groups:
+                gid = group.get("id") or group.get("label") or "<unnamed>"
+                errors.append(
+                    f"{vid}: presentation group {gid!r} was invented or changed during split"
                 )
 
         view_meta = doc.get("view") or {}
@@ -217,6 +241,18 @@ def main():
             errors.append(f"{vid}: focus contains omitted IDs")
         if context & focus:
             errors.append(f"{vid}: node cannot be both focus and context")
+
+        manifest_core = {str(x) for x in (view.get("core_nodes") or [])}
+        if manifest_core != focus:
+            errors.append(
+                f"{vid}: manifest core_nodes must match generated view.focus; "
+                f"{sorted(manifest_core)} != {sorted(focus)}"
+            )
+        if focus | context != included:
+            errors.append(
+                f"{vid}: every included node must be classified as focus or context; "
+                f"unclassified={sorted(included - (focus | context))}"
+            )
 
         expected_runs_all = primary_runs(source_primary, included)
         expected_primary_paths = [run for run in expected_runs_all if len(run) >= 2]
