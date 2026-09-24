@@ -153,6 +153,14 @@ def main():
     layout = doc.get("layout") or {}
     view = doc.get("view") or {}
     primary_path = [str(x) for x in (view.get("primary_path") or [])]
+    raw_primary_paths = view.get("primary_paths") or []
+    primary_paths = [
+        [str(x) for x in path]
+        for path in raw_primary_paths
+        if isinstance(path, list) and path
+    ]
+    if not primary_paths and primary_path:
+        primary_paths = [primary_path]
     rows, layout_metrics = optimize_rows(
         parse_rows(doc, nodes),
         edges,
@@ -284,13 +292,15 @@ def main():
         out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
-    primary_pairs = set(zip(primary_path, primary_path[1:]))
-    primary_ids = set(primary_path)
+    primary_pairs = {
+        pair
+        for path in primary_paths
+        for pair in zip(path, path[1:])
+    }
 
     def is_primary(edge):
-        eid = str(edge.get("id") or "")
         pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
-        return eid in primary_ids or pair in primary_pairs
+        return pair in primary_pairs
 
     degree = {nid: 0 for nid in boxes}
     for edge in edges:
