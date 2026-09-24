@@ -59,6 +59,27 @@ decl_rows, _ = optimize_rows(
     variant=0,
 )
 assert decl_rows[0]["nodes"] == ["c", "a", "b"], decl_rows
+
+multi_rows = [
+    {"label": "top", "nodes": ["a", "b", "x"]},
+    {"label": "bottom", "nodes": ["c", "y", "d"]},
+]
+single_primary, _ = optimize_rows(
+    multi_rows,
+    [],
+    primary_path=["a", "c"],
+    variant=2,
+)
+all_primary, all_meta = optimize_rows(
+    multi_rows,
+    [],
+    primary_paths=[["a", "c"], ["b", "d"]],
+    variant=2,
+)
+assert single_primary[1]["nodes"].index("d") == 2, single_primary
+assert all_primary[1]["nodes"].index("d") == 1, all_primary
+assert all_meta["primary_paths"] == 2, all_meta
+assert all_meta["primary_segments"] == 2, all_meta
 PY
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
