@@ -92,7 +92,10 @@ view:
   story: ""
   primary_path: []
   focus: []
+  context_nodes: []
   suppress: []
+  split_generated: false
+  split_kind: ""
   options:
     er_mode: ""
   visual_review_required: true
@@ -121,6 +124,12 @@ layout:
   edge_node_crossings_target: 0
   geometry_gate: required
   aspect_target: ""
+  auto_split:
+    enabled: true
+    max_nodes: 20
+    detail_nodes: 12
+    overview_nodes: 12
+    context_nodes: 3
 
 gaps: []
 findings: []
