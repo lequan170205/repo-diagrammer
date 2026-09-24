@@ -472,6 +472,84 @@ def _edge_ids_in_views(views):
     return covered
 
 
+def _boundary_ids_in_views(views):
+    covered = set()
+    for view in views:
+        for boundary in view["spec"].get("boundaries") or []:
+            if isinstance(boundary, dict) and boundary.get("id"):
+                covered.add(str(boundary["id"]))
+    return covered
+
+
+def _ensure_boundary_coverage(doc, views, max_detail_nodes):
+    """Add truthful full-membership boundary views where the normal split omitted them.
+
+    Oversized boundaries are never partially drawn; they are returned as explicit
+    unrepresented limitations for the manifest.
+    """
+    represented = _boundary_ids_in_views(views)
+    unrepresented = []
+
+    for boundary in doc.get("boundaries") or []:
+        if not isinstance(boundary, dict) or not boundary.get("id"):
+            continue
+        bid = str(boundary["id"])
+        if bid in represented:
+            continue
+        members = [str(x) for x in (boundary.get("contains") or [])]
+        members = list(dict.fromkeys(members))
+        if not members:
+            unrepresented.append({
+                "id": bid,
+                "reason": "empty_membership",
+                "member_count": 0,
+                "detail_node_budget": max_detail_nodes,
+            })
+            continue
+        if len(members) > max_detail_nodes:
+            unrepresented.append({
+                "id": bid,
+                "reason": "membership_exceeds_detail_budget",
+                "member_count": len(members),
+                "detail_node_budget": max_detail_nodes,
+            })
+            continue
+
+        label = str(boundary.get("name") or bid)
+        spec = make_view(
+            doc,
+            members,
+            f"Boundary: {label}",
+            context_limit=0,
+            overview=False,
+            split_kind="boundary",
+        )
+        # The view exists to communicate truthful membership. Keep a sparse real-edge
+        # backbone so a dense internal graph does not make the boundary view unreadable.
+        original_edge_ids = {
+            str(e["id"]) for e in (spec.get("edges") or [])
+            if isinstance(e, dict) and e.get("id")
+        }
+        spec["edges"], suppressed = _prune_overview_edges(doc, spec)
+        spec["view"]["suppressed_edges"] = sorted(
+            original_edge_ids - {
+                str(e["id"]) for e in (spec.get("edges") or [])
+                if isinstance(e, dict) and e.get("id")
+            }
+        )
+        view_id = f"boundary-{slugify(bid)}"
+        views.append({
+            "id": view_id,
+            "label": f"Boundary: {label}",
+            "core": members,
+            "coverage_boundary": bid,
+            "spec": spec,
+        })
+        represented.add(bid)
+
+    return unrepresented
+
+
 def _integration_batches(doc, uncovered_edge_ids, max_nodes):
     """Group uncovered edges into bounded connected interaction views.
 
@@ -593,6 +671,9 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
         overview_nodes=overview_nodes,
         context_nodes=context_nodes,
     )
+    unrepresented_boundaries = _ensure_boundary_coverage(
+        doc, views, max_detail_nodes=max_detail_nodes
+    )
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     manifest_views = []
@@ -609,6 +690,7 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             "spec": filename,
             "core_nodes": view["core"],
             "coverage_edges": view.get("coverage_edges", []),
+            "coverage_boundary": view.get("coverage_boundary"),
             "node_count": len(view["spec"].get("nodes") or []),
             "edge_count": len(view["spec"].get("edges") or []),
         })
@@ -622,6 +704,11 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
     covered_edges = _edge_ids_in_views(views)
     source_node_ids = {str(n["id"]) for n in _nodes(doc)}
     source_edge_ids = {str(e["id"]) for e in _edges(doc) if e.get("id")}
+    source_boundary_ids = {
+        str(b["id"]) for b in (doc.get("boundaries") or [])
+        if isinstance(b, dict) and b.get("id")
+    }
+    covered_boundary_ids = _boundary_ids_in_views(views) & source_boundary_ids
     manifest = {
         "source_spec": str(Path(spec_path)),
         "split_trigger": reasons or ["forced"],
@@ -635,6 +722,9 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             "edges_covered": len(covered_edges & source_edge_ids),
             "missing_nodes": sorted(source_node_ids - covered_nodes),
             "missing_edges": sorted(source_edge_ids - covered_edges),
+            "boundaries_total": len(source_boundary_ids),
+            "boundaries_covered": len(covered_boundary_ids),
+            "unrepresented_boundaries": unrepresented_boundaries,
         },
         "views": manifest_views,
     }

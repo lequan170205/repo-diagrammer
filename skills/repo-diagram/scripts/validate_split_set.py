@@ -75,6 +75,7 @@ def main():
     seen_view_ids = set()
     covered_node_ids = set()
     covered_edge_ids = set()
+    covered_boundary_ids = set()
     for view in manifest.get("views") or []:
         if not isinstance(view, dict):
             errors.append("manifest contains non-object view")
@@ -102,6 +103,7 @@ def main():
         boundaries = by_id(doc.get("boundaries"))
         covered_node_ids.update(nodes)
         covered_edge_ids.update(edges)
+        covered_boundary_ids.update(boundaries)
 
         for nid, node in nodes.items():
             original = source_nodes.get(nid)
@@ -204,6 +206,21 @@ def main():
             elif eid not in edges:
                 errors.append(f"{vid}: coverage edge {eid!r} missing from generated view")
 
+        coverage_boundary = view.get("coverage_boundary")
+        if coverage_boundary is not None:
+            coverage_boundary = str(coverage_boundary)
+            if coverage_boundary not in source_boundaries:
+                errors.append(
+                    f"{vid}: coverage_boundary references unknown source boundary "
+                    f"{coverage_boundary!r}"
+                )
+            elif coverage_boundary not in boundaries:
+                errors.append(
+                    f"{vid}: coverage boundary {coverage_boundary!r} missing from generated view"
+                )
+            if str(view_meta.get("split_kind") or "") != "boundary":
+                errors.append(f"{vid}: coverage_boundary view must use split_kind='boundary'")
+
     missing_nodes = set(source_nodes) - covered_node_ids
     missing_edges = set(source_edges) - covered_edge_ids
     if missing_nodes:
@@ -212,6 +229,61 @@ def main():
         errors.append(f"split set omits source edge(s): {sorted(missing_edges)}")
 
     coverage = manifest.get("coverage") or {}
+
+    disclosed_unrepresented = {}
+    for item in coverage.get("unrepresented_boundaries") or []:
+        if not isinstance(item, dict) or not item.get("id"):
+            errors.append("manifest.coverage.unrepresented_boundaries contains invalid entry")
+            continue
+        bid = str(item["id"])
+        if bid in disclosed_unrepresented:
+            errors.append(f"duplicate unrepresented boundary disclosure {bid!r}")
+            continue
+        disclosed_unrepresented[bid] = item
+        source_boundary = source_boundaries.get(bid)
+        if source_boundary is None:
+            errors.append(f"unrepresented boundary {bid!r} does not exist in source")
+            continue
+        if bid in covered_boundary_ids:
+            errors.append(f"boundary {bid!r} is both covered and disclosed as unrepresented")
+            continue
+        members = [str(x) for x in (source_boundary.get("contains") or [])]
+        member_count = len(dict.fromkeys(members))
+        if item.get("member_count") != member_count:
+            errors.append(
+                f"unrepresented boundary {bid!r} member_count mismatch: "
+                f"expected {member_count}, got {item.get('member_count')!r}"
+            )
+        budget = item.get("detail_node_budget")
+        reason = item.get("reason")
+        if reason == "membership_exceeds_detail_budget":
+            if not isinstance(budget, int) or member_count <= budget:
+                errors.append(
+                    f"unrepresented boundary {bid!r} does not actually exceed detail budget"
+                )
+        elif reason == "empty_membership":
+            if member_count != 0:
+                errors.append(
+                    f"unrepresented boundary {bid!r} claims empty membership but has members"
+                )
+        else:
+            errors.append(
+                f"unrepresented boundary {bid!r} has unsupported reason {reason!r}"
+            )
+
+    missing_boundary_ids = set(source_boundaries) - covered_boundary_ids
+    undisclosed_boundaries = missing_boundary_ids - set(disclosed_unrepresented)
+    if undisclosed_boundaries:
+        errors.append(
+            f"split set silently omits source boundary/boundaries: "
+            f"{sorted(undisclosed_boundaries)}"
+        )
+    stale_disclosures = set(disclosed_unrepresented) - missing_boundary_ids
+    if stale_disclosures:
+        errors.append(
+            f"unrepresented boundary disclosures are stale: {sorted(stale_disclosures)}"
+        )
+
     expected_coverage = {
         "nodes_total": len(source_nodes),
         "nodes_covered": len(set(source_nodes) & covered_node_ids),
@@ -219,6 +291,8 @@ def main():
         "edges_covered": len(set(source_edges) & covered_edge_ids),
         "missing_nodes": sorted(missing_nodes),
         "missing_edges": sorted(missing_edges),
+        "boundaries_total": len(source_boundaries),
+        "boundaries_covered": len(set(source_boundaries) & covered_boundary_ids),
     }
     for field, expected in expected_coverage.items():
         if coverage.get(field) != expected:
@@ -230,7 +304,8 @@ def main():
         f"SPLIT CHECK: {len(manifest.get('views') or [])} generated view(s), "
         f"{len(source_nodes)} source node(s), {len(source_edges)} source edge(s); "
         f"coverage={len(covered_node_ids & set(source_nodes))}/{len(source_nodes)} nodes, "
-        f"{len(covered_edge_ids & set(source_edges))}/{len(source_edges)} edges"
+        f"{len(covered_edge_ids & set(source_edges))}/{len(source_edges)} edges, "
+        f"{len(covered_boundary_ids & set(source_boundaries))}/{len(source_boundaries)} boundaries"
     )
     if errors:
         for error in errors:
@@ -238,7 +313,10 @@ def main():
         print(f"SPLIT INVALID: {len(errors)} error(s)")
         return 1
 
-    print("SPLIT VALID: stable IDs, source semantics, and full node/edge coverage preserved across generated views")
+    print(
+        "SPLIT VALID: stable IDs, source semantics, full node/edge coverage, "
+        "and truthful boundary coverage/disclosure preserved across generated views"
+    )
     return 0
 
 
