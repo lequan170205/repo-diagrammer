@@ -238,6 +238,61 @@ PY
     exit 1
   fi
 
+  cat > "$tmp_visual/focus-context.spec.yaml" <<'YAML'
+question: focus context hierarchy
+type: c4-container
+scope: self-test focus context
+nodes:
+  - {id: core_a, label: Core A, semantic_role: domain, evidence: ["test:a"]}
+  - {id: core_b, label: Core B, semantic_role: data, evidence: ["test:b"]}
+  - {id: external_context, label: Context API, semantic_role: api, evidence: ["test:c"]}
+edges:
+  - {id: ab, from: core_a, to: core_b, relation: writes, label: SQL, sync: true, evidence: ["test:ab"]}
+  - {id: ca, from: external_context, to: core_a, relation: calls, label: HTTP, sync: true, evidence: ["test:ca"]}
+view:
+  profile: architecture
+  focus: [core_a, core_b]
+  context_nodes: [external_context]
+presentation:
+  style: polished-overview
+  title: Focus Context
+  legend: {show: true}
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/focus-context.spec.yaml" "$tmp_visual/focus-context.svg" >/dev/null
+  visual_expect_pass "$tmp_visual/focus-context.svg" --max-crossings 0
+  grep -q 'data-node-id="core_a".*data-visual-scope="focus"' "$tmp_visual/focus-context.svg"
+  grep -q 'data-node-id="core_b".*data-visual-scope="focus"' "$tmp_visual/focus-context.svg"
+  grep -q 'data-node-id="external_context".*data-visual-scope="context"' "$tmp_visual/focus-context.svg"
+  grep -q 'data-legend-key="context-node"' "$tmp_visual/focus-context.svg"
+  python3 "$core/scripts/browser_typography.py" "$tmp_visual/focus-context.svg" --strict --required >/dev/null
+
+  cat > "$tmp_visual/no-context.spec.yaml" <<'YAML'
+question: no context legend
+type: c4-container
+scope: self-test no context
+nodes:
+  - {id: a, label: A, semantic_role: domain, evidence: ["test:a"]}
+  - {id: b, label: B, semantic_role: data, evidence: ["test:b"]}
+edges:
+  - {id: ab, from: a, to: b, relation: writes, label: SQL, sync: true, evidence: ["test:ab"]}
+view:
+  profile: architecture
+  focus: [a, b]
+presentation:
+  style: polished-overview
+  title: No Context
+  legend: {show: true}
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/no-context.spec.yaml" "$tmp_visual/no-context.svg" >/dev/null
+  if grep -q 'data-legend-key="context-node"' "$tmp_visual/no-context.svg"; then
+    echo "diagram without context nodes incorrectly rendered context legend key" >&2
+    exit 1
+  fi
+
   cat > "$tmp_visual/regions.spec.yaml" <<'YAML'
 question: region geometry
 type: c4-container
