@@ -185,7 +185,7 @@ def label_candidates(points,w,h):
     return candidates
 
 
-def place_label(points,w,h,boxes,placed_labels,canvas_w,canvas_h):
+def place_label(points,w,h,boxes,placed_labels,existing_routes,owner_edge_id,canvas_w,canvas_h):
     candidates=label_candidates(points,w,h)
     if not candidates:
         return (8,8,w,h)
@@ -201,6 +201,12 @@ def place_label(points,w,h,boxes,placed_labels,canvas_w,canvas_h):
         for other in placed_labels:
             if box_overlap(rect,other):
                 s+=80_000
+        for route in existing_routes:
+            if route.get("id") == owner_edge_id:
+                continue
+            for a,b in zip(route["points"],route["points"][1:]):
+                if segment_hits_box(a,b,rect,pad=1.0):
+                    s+=70_000
         # Prefer compact position near center of diagram and earlier candidates.
         s+=abs((x+rw/2)-canvas_w/2)*0.02
         return s
