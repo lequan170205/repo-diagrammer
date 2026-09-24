@@ -140,14 +140,15 @@ bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any
 ```
 
 For static high-level architecture with `presentation.style: polished-overview`,
-prefer the geometry-owned renderer:
+use the geometry-owned auto-repair renderer:
 ```bash
-python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_architecture_svg.py" path/to/<slug>.spec.yaml path/to/<slug>.svg
-python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/visual_analyze_svg.py" path/to/<slug>.svg --strict --max-crossings 0
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_polished.py" path/to/<slug>.spec.yaml path/to/<slug>.svg
 ```
 
-If the geometry gate reports a Blocking defect, repair layout/routing and render again.
-Never mark visual review passed while an edge crosses an unrelated node.
+It renders, runs the strict geometry gate, and retries presentation-only spacing when
+the remaining defects are mechanically repairable. It stops instead of mutating the
+model when the defect requires grouping/model correction. Never mark visual review
+passed while a Blocking geometry defect remains.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 
