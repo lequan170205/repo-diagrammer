@@ -127,7 +127,9 @@ For polished static architecture, the native visual compiler owns node geometry 
 orthogonal edge routing. `visual_analyze_svg.py` mechanically checks node overlap,
 edge-through-node defects, edge/edge crossings, tight gaps and route stretch.
 When Chrome/Chromium is available, `browser_typography.py` additionally measures
-actual SVG text bounds with `getBBox()` before the final 100% visual inspection.
+actual SVG text bounds with `getBBox()`, verifies title/subtitle/row/legend hierarchy,
+region and edge-label readability, and blocks text collisions before the final 100%
+visual inspection.
 
 High-level architecture additionally uses the polished technical-poster style from
 `high-level-architecture-style.md`.
