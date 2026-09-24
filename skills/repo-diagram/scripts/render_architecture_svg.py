@@ -252,9 +252,22 @@ def main():
                    f'stroke-width="1.7"{dash} marker-end="url(#arrow)"/></g>')
         label = str(e.get("label") or e.get("protocol") or "").strip()
         if label:
-            mx, my = pts[len(pts)//2]
-            out.append(f'<text x="{mx+6:.1f}" y="{my-6:.1f}" font-family="Inter,Arial,sans-serif" '
-                       f'font-size="10.5" fill="#64748B">{esc(label)}</text>')
+            # Place labels on the longest route segment and give them a measurable
+            # background box so collision analysis is deterministic.
+            segs = list(zip(pts, pts[1:]))
+            a, b = max(segs, key=lambda ab: math.dist(ab[0], ab[1]))
+            mx, my = (a[0]+b[0])/2, (a[1]+b[1])/2
+            lw = max(34, min(210, 14+len(label)*5.8))
+            lh = 20
+            if abs(a[0]-b[0]) < abs(a[1]-b[1]):
+                lx, ly = mx+7, my-lh/2
+            else:
+                lx, ly = mx-lw/2, my-lh-5
+            out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
+                       f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
+                       'fill="#FFFFFF" fill-opacity="0.94"/>'
+                       f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
+                       f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
 
     for nid, (x, yy, w, h) in boxes.items():
         node = nmap[nid]
