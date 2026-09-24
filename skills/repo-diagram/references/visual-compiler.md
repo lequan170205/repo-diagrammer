@@ -99,9 +99,11 @@ stronger final typography gate. When Chrome/Chromium/headless-shell is available
 `browser_typography.py` loads the rendered SVG and measures actual text bounds with
 `getBBox()`.
 
-It checks node copy, edge-label copy, region headers, line collisions, minimum readable
-font sizes, and text escaping the SVG canvas. `render_polished.py` feeds failures back
-into later passes via a conservative text-width scale.
+It checks node copy, edge-label copy, region headers, title/subtitle hierarchy, row
+headings, legend text, line collisions, minimum readable font sizes, hierarchy
+collisions, and text escaping the SVG canvas. `render_polished.py` retries geometry
+only for typography defects that can plausibly be fixed by more room; font-size and
+hierarchy-collision defects stop immediately instead of wasting spacing passes.
 
 Browser verification is opportunistic by default and must report
 `typography=fallback-estimator` when unavailable. Use
