@@ -395,7 +395,7 @@ def main():
             continue
         ry = boxes[row["nodes"][0]][1]-18
         out.append(f'<text data-text-role="row-heading" x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
-                   f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
+                   f'font-weight="600" fill="#64748B" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
     def is_primary(edge):
         pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
