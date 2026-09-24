@@ -246,6 +246,21 @@ YAML
   visual_expect_pass "$tmp_visual/regions.svg" --max-crossings 0
   grep -q 'data-region-kind="boundary"' "$tmp_visual/regions.svg"
   grep -q 'data-region-kind="presentation"' "$tmp_visual/regions.svg"
+  grep -q 'data-text-role="region-header"' "$tmp_visual/regions.svg"
+  python3 "$core/scripts/browser_typography.py" "$tmp_visual/regions.svg" --strict --required >"$tmp_visual/regions.typography.out"
+
+  cat > "$tmp_visual/bad-hierarchy.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <text data-text-role="title" x="20" y="40" font-family="Arial,sans-serif" font-size="8">Tiny title</text>
+  <text data-text-role="subtitle" x="20" y="40" font-family="Arial,sans-serif" font-size="8">Overlapping subtitle</text>
+</svg>
+SVG
+  if python3 "$core/scripts/browser_typography.py" "$tmp_visual/bad-hierarchy.svg" --strict --required >"$tmp_visual/bad-hierarchy.out" 2>&1; then
+    echo "expected hierarchy typography defects were not detected" >&2
+    exit 1
+  fi
+  grep -q 'TITLE_TEXT_TOO_SMALL' "$tmp_visual/bad-hierarchy.out"
+  grep -q 'TITLE_SUBTITLE_COLLISION' "$tmp_visual/bad-hierarchy.out"
 
   cat > "$tmp_visual/bad-typography.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="160" viewBox="0 0 300 160">
