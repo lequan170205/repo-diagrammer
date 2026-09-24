@@ -63,6 +63,7 @@ fragments = mapping_list("interaction_fragments")
 gaps = doc.get("gaps") or []
 view = as_map(doc.get("view"), "view")
 presentation = as_map(doc.get("presentation"), "presentation")
+layout = as_map(doc.get("layout"), "layout")
 conformance = as_map(doc.get("conformance"), "conformance")
 architecture_description = as_map(doc.get("architecture_description"), "architecture_description")
 
@@ -152,6 +153,69 @@ for i, group in enumerate(groups):
         if member not in node_ids:
             errors.append(f"{prefix}.contains: unknown real node {member!r}")
 
+# Layout is presentation metadata, but silent bad references make the rendered view
+# diverge from the evidence model. Validate every explicit placement reference.
+layout_rows = layout.get("rows") or []
+if not isinstance(layout_rows, list):
+    errors.append("layout.rows: must be a list")
+    layout_rows = []
+row_members: list[str] = []
+for i, row in enumerate(layout_rows):
+    if isinstance(row, dict):
+        members = row.get("nodes") or row.get("contains") or []
+    elif isinstance(row, list):
+        members = row
+    else:
+        errors.append(f"layout.rows[{i}]: must be a mapping or list")
+        continue
+    if not isinstance(members, list):
+        errors.append(f"layout.rows[{i}]: nodes/contains must be a list")
+        continue
+    for member in members:
+        if member not in node_ids:
+            errors.append(f"layout.rows[{i}]: unknown node {member!r}")
+        row_members.append(member)
+if len(row_members) != len(set(row_members)):
+    errors.append("layout.rows: a node may appear in at most one explicit row")
+
+sidecars = layout.get("sidecars") or {}
+if not isinstance(sidecars, dict):
+    errors.append("layout.sidecars: must be a mapping")
+    sidecars = {}
+sidecar_members: list[str] = []
+for zone in ("left", "right", "bottom"):
+    members = sidecars.get(zone) or []
+    if not isinstance(members, list):
+        errors.append(f"layout.sidecars.{zone}: must be a list")
+        continue
+    for member in members:
+        if member not in node_ids:
+            errors.append(f"layout.sidecars.{zone}: unknown node {member!r}")
+        sidecar_members.append(member)
+if len(sidecar_members) != len(set(sidecar_members)):
+    errors.append("layout.sidecars: a node may appear in only one sidecar zone")
+conflicts = sorted(set(row_members) & set(sidecar_members))
+if conflicts:
+    errors.append(f"layout: nodes cannot be both row members and sidecars: {conflicts}")
+
+declaration_order = layout.get("declaration_order") or []
+if declaration_order:
+    if not isinstance(declaration_order, list):
+        errors.append("layout.declaration_order: must be a list")
+    else:
+        unknown = [nid for nid in declaration_order if nid not in node_ids]
+        if unknown:
+            errors.append(f"layout.declaration_order: unknown nodes {unknown}")
+        if len(declaration_order) != len(set(declaration_order)):
+            errors.append("layout.declaration_order: duplicate node ids")
+
+for field in ("crossing_target", "edge_node_crossings_target"):
+    value = layout.get(field)
+    if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
+        errors.append(f"layout.{field}: must be a non-negative integer")
+if layout.get("geometry_gate", "required") not in {"required", "advisory", "off"}:
+    errors.append("layout.geometry_gate: expected required, advisory, or off")
+
 diagram_type = str(doc.get("type") or "").strip()
 profile_for = {
     "c4-landscape": "architecture",
@@ -179,10 +243,15 @@ elif view.get("profile") != expected_profile:
         f"got {view.get('profile')!r}"
     )
 
-if view.get("renderer", "auto") not in {"auto", "mermaid", "plantuml", "graphviz"}:
+allowed_renderers = {"auto", "native-svg", "mermaid", "plantuml", "graphviz"}
+if view.get("renderer", "auto") not in allowed_renderers:
     errors.append(f"view.renderer: unsupported {view.get('renderer')!r}")
-if view.get("fallback_renderer", "auto") not in {"auto", "mermaid", "plantuml", "graphviz"}:
+if view.get("fallback_renderer", "auto") not in allowed_renderers:
     errors.append(f"view.fallback_renderer: unsupported {view.get('fallback_renderer')!r}")
+if view.get("renderer") == "native-svg" and diagram_type not in {
+    "c4-landscape", "c4-context", "c4-container", "c4-component"
+}:
+    errors.append("view.renderer: native-svg is supported only for static C4/high-level architecture views")
 
 relations = [e.get("relation") for e in edges if isinstance(e, dict)]
 if diagram_type == "class":
