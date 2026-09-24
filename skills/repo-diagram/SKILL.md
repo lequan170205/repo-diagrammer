@@ -123,6 +123,7 @@ Record preferred/fallback renderer in the spec. A fallback is allowed only if it
 preserves semantics.
 
 Plan layout before source:
+- density budget and whether the view should split;
 - primary story/path;
 - declaration/participant order;
 - real boundaries;
@@ -145,10 +146,13 @@ use the geometry-owned auto-repair renderer:
 python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_polished.py" path/to/<slug>.spec.yaml path/to/<slug>.svg
 ```
 
-It renders, runs the strict geometry gate, and retries presentation-only spacing when
-the remaining defects are mechanically repairable. It stops instead of mutating the
-model when the defect requires grouping/model correction. Never mark visual review
-passed while a Blocking geometry defect remains.
+It first applies the density budget. Dense architecture specs are automatically
+expanded into an overview plus bounded detail views under `<output-stem>.set/`, all
+using stable source IDs and no invented architecture elements. Each generated view is
+then rendered through the strict geometry gate and presentation-only repair loop.
+
+It stops instead of mutating the model when a defect requires grouping/model
+correction. Never mark visual review passed while a Blocking geometry defect remains.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 
