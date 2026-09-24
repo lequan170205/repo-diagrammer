@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/browser_typography.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -104,7 +104,8 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
-  python3 "$core/scripts/render_polished.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-auto.svg" --max-passes 3 >/dev/null
+  python3 "$core/scripts/browser_typography.py" "$tmp_visual/architecture.svg" --strict --required --json "$tmp_visual/architecture.typography.json" >/dev/null
+  python3 "$core/scripts/render_polished.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-auto.svg" --max-passes 3 --require-browser-typography >/dev/null
   [ -s "$tmp_visual/architecture-auto.svg" ]
   bash "$core/scripts/render_any.sh" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-any.svg" >/dev/null
   [ -s "$tmp_visual/architecture-any.svg" ]
@@ -155,6 +156,20 @@ YAML
   visual_expect_pass "$tmp_visual/regions.svg" --max-crossings 0
   grep -q 'data-region-kind="boundary"' "$tmp_visual/regions.svg"
   grep -q 'data-region-kind="presentation"' "$tmp_visual/regions.svg"
+
+  cat > "$tmp_visual/bad-typography.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="160" viewBox="0 0 300 160">
+  <g data-node-id="overflow">
+    <rect x="40" y="40" width="90" height="50"/>
+    <text x="50" y="70" font-family="Arial,sans-serif" font-size="18">WWWWWWWWWWWWWWWW</text>
+  </g>
+</svg>
+SVG
+  if python3 "$core/scripts/browser_typography.py" "$tmp_visual/bad-typography.svg" --strict --required >"$tmp_visual/bad-typography.out" 2>&1; then
+    echo "expected browser typography overflow was not detected" >&2
+    exit 1
+  fi
+  grep -q 'TEXT_OVERFLOW' "$tmp_visual/bad-typography.out"
 
   cat > "$tmp_visual/bad.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
