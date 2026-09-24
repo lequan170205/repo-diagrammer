@@ -166,6 +166,7 @@ def main():
         edges,
         declaration_order=layout.get("declaration_order") or [],
         primary_path=primary_path,
+        primary_paths=primary_paths,
         variant=args.layout_variant,
     )
     nmap = {n["id"]: n for n in nodes}
