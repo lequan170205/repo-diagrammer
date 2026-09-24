@@ -111,12 +111,15 @@ presentation:
     edge_semantics: []
 
 layout:
+  # Native polished SVG currently owns TB/TD geometry. LR/RL requires a fallback renderer.
   direction: ""
   # Deterministic ordering hint; optimizer may improve it to reduce crossings.
   declaration_order: []
   # Optional geometry-owned rows for polished static architecture.
   # Example: { id: runtime, label: "Runtime services", nodes: [api, call] }
   rows: []
+  # Real nodes may be pulled out of semantic rows into dedicated geometry lanes.
+  # A node may appear in at most one sidecar lane and must not also appear in rows.
   sidecars:
     left: []
     right: []
