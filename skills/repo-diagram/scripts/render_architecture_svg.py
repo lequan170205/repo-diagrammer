@@ -374,6 +374,7 @@ def main():
         return x+w, y0+h*frac
 
     same_row_count = {}
+    sidecar_route_count = {}
     cross_count = {}
     routed_edges = []
     pending_labels = []
@@ -391,13 +392,26 @@ def main():
 
         source_side, target_side = edge_sides[ei]
         if sri == tri:
-            k = same_row_count.get(sri, 0)
-            same_row_count[sri] = k+1
             x1, y1 = port_for(sid, source_side, ei)
             x2, y2 = port_for(tid, target_side, ei)
-            lift = 32+18*k
-            midy = min(sy, ty)-lift
-            pts = [(x1, y1), (x1, midy), (x2, midy), (x2, y2)]
+            sz, tz = node_zone.get(sid, "core"), node_zone.get(tid, "core")
+            peripheral_zone = tz if tz in {"left", "right"} else (sz if sz in {"left", "right"} else None)
+            if peripheral_zone:
+                key = (peripheral_zone, sri)
+                k = sidecar_route_count.get(key, 0)
+                sidecar_route_count[key] = k+1
+                lane = k % 5
+                if peripheral_zone == "right":
+                    channel = core_right+24+lane*14
+                else:
+                    channel = core_left-24-lane*14
+                pts = [(x1, y1), (channel, y1), (channel, y2), (x2, y2)]
+            else:
+                k = same_row_count.get(sri, 0)
+                same_row_count[sri] = k+1
+                lift = 32+18*k
+                midy = min(sy, ty)-lift
+                pts = [(x1, y1), (x1, midy), (x2, midy), (x2, y2)]
         else:
             downward = tri > sri
             x1, y1 = port_for(sid, source_side, ei)
