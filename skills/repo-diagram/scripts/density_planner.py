@@ -356,32 +356,42 @@ def _edge_ids_in_views(views):
 
 
 def _integration_batches(doc, uncovered_edge_ids, max_nodes):
-    """Group uncovered cross-cluster edges into bounded endpoint sets.
+    """Group uncovered edges into bounded connected interaction views.
 
-    This preserves every source relation at least once without inventing summary nodes.
+    Disconnected edge pairs are deliberately not packed together: doing so often
+    creates avoidable crossings in a view whose only job is preserving relation
+    coverage. Connected stars/chains may share a view while they fit the node budget.
     """
-    edges = [e for e in _edges(doc) if str(e.get("id")) in uncovered_edge_ids]
+    remaining = [
+        e for e in _edges(doc)
+        if str(e.get("id")) in uncovered_edge_ids
+    ]
     batches = []
-    current_edges = []
-    current_nodes = set()
 
-    def flush():
-        nonlocal current_edges, current_nodes
-        if current_edges:
-            batches.append({
-                "edge_ids": [str(e["id"]) for e in current_edges],
-                "nodes": sorted(current_nodes),
-            })
-        current_edges = []
-        current_nodes = set()
+    while remaining:
+        seed = remaining.pop(0)
+        current_edges = [seed]
+        current_nodes = {str(seed["from"]), str(seed["to"])}
 
-    for edge in edges:
-        endpoints = {str(edge["from"]), str(edge["to"])}
-        if current_edges and len(current_nodes | endpoints) > max_nodes:
-            flush()
-        current_edges.append(edge)
-        current_nodes.update(endpoints)
-    flush()
+        changed = True
+        while changed:
+            changed = False
+            for edge in list(remaining):
+                endpoints = {str(edge["from"]), str(edge["to"])}
+                if not (endpoints & current_nodes):
+                    continue
+                if len(current_nodes | endpoints) > max_nodes:
+                    continue
+                current_edges.append(edge)
+                current_nodes.update(endpoints)
+                remaining.remove(edge)
+                changed = True
+
+        batches.append({
+            "edge_ids": [str(e["id"]) for e in current_edges],
+            "nodes": sorted(current_nodes),
+        })
+
     return batches
 
 
