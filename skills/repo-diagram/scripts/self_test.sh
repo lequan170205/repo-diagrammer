@@ -379,6 +379,29 @@ doc = {
     "scope": "self-test dense",
     "nodes": nodes,
     "edges": edges,
+    "boundaries": [
+        {
+            "id": "owner-a",
+            "name": "Owner A",
+            "contains": ["n00", "n01", "n02", "n03"],
+            "kind": "service-boundary",
+            "evidence": ["test-boundary:owner-a"],
+        },
+        {
+            "id": "cross-boundary",
+            "name": "Cross Boundary",
+            "contains": ["n02", "n03", "n04", "n05"],
+            "kind": "runtime-boundary",
+            "evidence": ["test-boundary:cross"],
+        },
+        {
+            "id": "oversized-boundary",
+            "name": "Oversized Boundary",
+            "contains": [f"n{i:02d}" for i in range(6, 19)],
+            "kind": "deployment-boundary",
+            "evidence": ["test-boundary:oversized"],
+        },
+    ],
     "view": {"profile": "architecture", "primary_path": ["n00", "n01", "n02", "n03"]},
     "presentation": {"style": "polished-overview", "title": "Dense Architecture"},
     "layout": {
@@ -424,6 +447,17 @@ assert coverage["nodes_covered"] == coverage["nodes_total"], coverage
 assert coverage["edges_covered"] == coverage["edges_total"], coverage
 assert coverage["missing_nodes"] == [], coverage
 assert coverage["missing_edges"] == [], coverage
+assert coverage["boundaries_total"] == 3, coverage
+assert coverage["boundaries_covered"] == 2, coverage
+unrepresented = {
+    item["id"]: item
+    for item in (coverage.get("unrepresented_boundaries") or [])
+}
+assert set(unrepresented) == {"oversized-boundary"}, coverage
+assert unrepresented["oversized-boundary"]["reason"] == "membership_exceeds_detail_budget"
+assert unrepresented["oversized-boundary"]["member_count"] == 13
+assert unrepresented["oversized-boundary"]["detail_node_budget"] == 8
+assert any(v["id"] == "boundary-cross-boundary" for v in views), views
 assert any(str(v["id"]).startswith("integration-") for v in views), views
 integration_edges = {
     eid
