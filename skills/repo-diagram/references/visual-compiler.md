@@ -56,6 +56,7 @@ Automatic splitting is semantics-preserving:
 - no synthetic subsystem/service nodes are invented;
 - the overview selects real primary/focus/high-degree nodes only;
 - detail views contain a bounded core plus a few real one-hop context nodes;
+- if bounded context would leave source relations unrepresented, the planner adds bounded integration views containing only the real endpoints of those uncovered edges;
 - evidence-backed boundaries and presentation groups are shown only when their full
   membership is visible in that generated view;
 - omitted elements are recorded in `view.suppress`;
@@ -65,7 +66,8 @@ The default generated set is an overview plus bounded detail views. The manifest
 records why splitting happened and explicitly states that stable IDs were preserved
 and no architecture elements were invented. Before any generated view is rendered,
 `validate_split_set.py` compares every selected node, edge, protocol, sync flag,
-evidence field and complete boundary against the source spec.
+evidence field and complete boundary against the source spec, and requires 100% source
+node/edge coverage across the generated set.
 
 Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
 let `render_polished.py` automatically create `<output-stem>.set/` when splitting is

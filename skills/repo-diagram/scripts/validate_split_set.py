@@ -50,6 +50,8 @@ def main():
         errors.append("manifest.invented_architecture_elements must be false")
 
     seen_view_ids = set()
+    covered_node_ids = set()
+    covered_edge_ids = set()
     for view in manifest.get("views") or []:
         if not isinstance(view, dict):
             errors.append("manifest contains non-object view")
@@ -75,6 +77,8 @@ def main():
         nodes = by_id(doc.get("nodes"))
         edges = by_id(doc.get("edges"))
         boundaries = by_id(doc.get("boundaries"))
+        covered_node_ids.update(nodes)
+        covered_edge_ids.update(edges)
 
         for nid, node in nodes.items():
             original = source_nodes.get(nid)
@@ -143,9 +147,46 @@ def main():
                 f"got {sorted(suppressed)}"
             )
 
+        coverage_edges = {str(x) for x in (view.get("coverage_edges") or [])}
+        spec_coverage_edges = {str(x) for x in (view_meta.get("coverage_edges") or [])}
+        if coverage_edges != spec_coverage_edges:
+            errors.append(
+                f"{vid}: manifest/spec coverage_edges mismatch; "
+                f"{sorted(coverage_edges)} != {sorted(spec_coverage_edges)}"
+            )
+        for eid in coverage_edges:
+            if eid not in source_edges:
+                errors.append(f"{vid}: coverage_edges references unknown source edge {eid!r}")
+            elif eid not in edges:
+                errors.append(f"{vid}: coverage edge {eid!r} missing from generated view")
+
+    missing_nodes = set(source_nodes) - covered_node_ids
+    missing_edges = set(source_edges) - covered_edge_ids
+    if missing_nodes:
+        errors.append(f"split set omits source node(s): {sorted(missing_nodes)}")
+    if missing_edges:
+        errors.append(f"split set omits source edge(s): {sorted(missing_edges)}")
+
+    coverage = manifest.get("coverage") or {}
+    expected_coverage = {
+        "nodes_total": len(source_nodes),
+        "nodes_covered": len(set(source_nodes) & covered_node_ids),
+        "edges_total": len(source_edges),
+        "edges_covered": len(set(source_edges) & covered_edge_ids),
+        "missing_nodes": sorted(missing_nodes),
+        "missing_edges": sorted(missing_edges),
+    }
+    for field, expected in expected_coverage.items():
+        if coverage.get(field) != expected:
+            errors.append(
+                f"manifest.coverage.{field}: expected {expected!r}, got {coverage.get(field)!r}"
+            )
+
     print(
         f"SPLIT CHECK: {len(manifest.get('views') or [])} generated view(s), "
-        f"{len(source_nodes)} source node(s), {len(source_edges)} source edge(s)"
+        f"{len(source_nodes)} source node(s), {len(source_edges)} source edge(s); "
+        f"coverage={len(covered_node_ids & set(source_nodes))}/{len(source_nodes)} nodes, "
+        f"{len(covered_edge_ids & set(source_edges))}/{len(source_edges)} edges"
     )
     if errors:
         for error in errors:
@@ -153,7 +194,7 @@ def main():
         print(f"SPLIT INVALID: {len(errors)} error(s)")
         return 1
 
-    print("SPLIT VALID: stable IDs and source semantics preserved across generated views")
+    print("SPLIT VALID: stable IDs, source semantics, and full node/edge coverage preserved across generated views")
     return 0
 
 

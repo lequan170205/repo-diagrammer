@@ -295,7 +295,95 @@ def _filter_rows(rows, included):
     return out
 
 
-def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overview=False):
+def _prune_overview_edges(doc, spec):
+    """Keep a sparse real-edge backbone for overview readability.
+
+    The full split set still preserves every relation; the overview is a story/navigation
+    view, not a compressed copy of all source relations.
+    """
+    included = {str(n["id"]) for n in (spec.get("nodes") or []) if isinstance(n, dict) and n.get("id")}
+    edges = [
+        copy.deepcopy(e) for e in (spec.get("edges") or [])
+        if isinstance(e, dict) and e.get("id")
+    ]
+    if len(edges) <= max(8, len(included) - 1):
+        return edges, []
+
+    primary = [
+        str(x) for x in ((doc.get("view") or {}).get("primary_path") or [])
+        if str(x) in included
+    ]
+    primary_pairs = set(zip(primary, primary[1:]))
+    required_ids = {
+        str(e["id"]) for e in edges
+        if (str(e.get("from")), str(e.get("to"))) in primary_pairs
+    }
+
+    parent = {nid: nid for nid in included}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return False
+        parent[rb] = ra
+        return True
+
+    kept = []
+    kept_ids = set()
+    by_id = {str(e["id"]): e for e in edges}
+
+    # Primary story edges are mandatory and seed the connectivity forest.
+    for eid in sorted(required_ids):
+        edge = by_id[eid]
+        kept.append(edge)
+        kept_ids.add(eid)
+        union(str(edge["from"]), str(edge["to"]))
+
+    node_by_id = {
+        str(n["id"]): n for n in (doc.get("nodes") or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+
+    def role(nid):
+        n = node_by_id.get(nid) or {}
+        return str(n.get("semantic_role") or n.get("kind") or "domain")
+
+    role_order = {
+        name: idx for idx, name in enumerate(
+            ["clients", "ingress", "api", "realtime", "messaging",
+             "processing", "domain", "data", "observability", "external"]
+        )
+    }
+
+    def edge_score(edge):
+        a, b = str(edge["from"]), str(edge["to"])
+        ra = role_order.get(role(a), 50)
+        rb = role_order.get(role(b), 50)
+        role_jump = abs(ra-rb)
+        primary_touch = int(a in primary or b in primary)
+        return (-primary_touch, role_jump, str(edge["id"]))
+
+    # Add only real edges needed to connect as much of the overview as possible.
+    for edge in sorted(edges, key=edge_score):
+        eid = str(edge["id"])
+        if eid in kept_ids:
+            continue
+        a, b = str(edge["from"]), str(edge["to"])
+        if union(a, b):
+            kept.append(edge)
+            kept_ids.add(eid)
+
+    omitted = sorted(str(e["id"]) for e in edges if str(e["id"]) not in kept_ids)
+    return kept, omitted
+
+
+def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overview=False, split_kind=None):
     core = set(str(x) for x in core_ids)
     nodes, edges, adjacency, degree = graph_data(doc)
     all_ids = {str(n["id"]) for n in nodes}
@@ -320,6 +408,9 @@ def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overvie
         copy.deepcopy(e) for e in edges
         if str(e["from"]) in included and str(e["to"]) in included
     ]
+    overview_omitted_edges = []
+    if overview:
+        clone["edges"], overview_omitted_edges = _prune_overview_edges(doc, clone)
     clone["boundaries"] = _filter_regions(doc.get("boundaries"), included)
 
     presentation = copy.deepcopy(doc.get("presentation") or {})
@@ -339,11 +430,61 @@ def make_view(doc, core_ids, label, context_limit=DEFAULT_CONTEXT_NODES, overvie
     view["context_nodes"] = context
     view["suppress"] = sorted(all_ids - included)
     view["split_generated"] = True
-    view["split_kind"] = "overview" if overview else "detail"
+    view["split_kind"] = split_kind or ("overview" if overview else "detail")
+    view["suppressed_edges"] = overview_omitted_edges if overview else []
     clone["view"] = view
 
     clone["scope"] = f"{doc.get('scope') or 'architecture'} / {label}"
     return clone
+
+
+def _edge_ids_in_views(views):
+    covered = set()
+    for view in views:
+        for edge in view["spec"].get("edges") or []:
+            if isinstance(edge, dict) and edge.get("id"):
+                covered.add(str(edge["id"]))
+    return covered
+
+
+def _integration_batches(doc, uncovered_edge_ids, max_nodes):
+    """Group uncovered edges into bounded connected interaction views.
+
+    Disconnected edge pairs are deliberately not packed together: doing so often
+    creates avoidable crossings in a view whose only job is preserving relation
+    coverage. Connected stars/chains may share a view while they fit the node budget.
+    """
+    remaining = [
+        e for e in _edges(doc)
+        if str(e.get("id")) in uncovered_edge_ids
+    ]
+    batches = []
+
+    while remaining:
+        seed = remaining.pop(0)
+        current_edges = [seed]
+        current_nodes = {str(seed["from"]), str(seed["to"])}
+
+        changed = True
+        while changed:
+            changed = False
+            for edge in list(remaining):
+                endpoints = {str(edge["from"]), str(edge["to"])}
+                if not (endpoints & current_nodes):
+                    continue
+                if len(current_nodes | endpoints) > max_nodes:
+                    continue
+                current_edges.append(edge)
+                current_nodes.update(endpoints)
+                remaining.remove(edge)
+                changed = True
+
+        batches.append({
+            "edge_ids": [str(e["id"]) for e in current_edges],
+            "nodes": sorted(current_nodes),
+        })
+
+    return batches
 
 
 def plan_views(
@@ -373,6 +514,42 @@ def plan_views(
                 overview=False,
             ),
         })
+
+    # Bounded context is intentionally lossy for a single detail view, but the whole
+    # generated set must never lose a source relation. Add real-node integration views
+    # for any edge that is still not represented anywhere.
+    source_edge_ids = {
+        str(e["id"]) for e in _edges(doc)
+        if e.get("id")
+    }
+    covered = _edge_ids_in_views(views)
+    uncovered = source_edge_ids - covered
+    for idx, batch in enumerate(
+        _integration_batches(doc, uncovered, max_detail_nodes),
+        start=1,
+    ):
+        label = f"Cross-cluster interactions {idx}"
+        view_id = f"integration-{idx:02d}"
+        spec = make_view(
+            doc,
+            batch["nodes"],
+            label,
+            context_limit=0,
+            overview=False,
+            split_kind="integration",
+        )
+        # Keep only relations needed to guarantee uncovered-edge coverage plus any
+        # directly connecting relations between the same endpoints.
+        required = set(batch["edge_ids"])
+        spec["view"]["coverage_edges"] = sorted(required)
+        views.append({
+            "id": view_id,
+            "label": label,
+            "core": list(batch["nodes"]),
+            "coverage_edges": sorted(required),
+            "spec": spec,
+        })
+
     return views
 
 
@@ -406,16 +583,34 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             "label": view["label"],
             "spec": filename,
             "core_nodes": view["core"],
+            "coverage_edges": view.get("coverage_edges", []),
             "node_count": len(view["spec"].get("nodes") or []),
             "edge_count": len(view["spec"].get("edges") or []),
         })
 
+    covered_nodes = {
+        str(node.get("id"))
+        for view in views
+        for node in (view["spec"].get("nodes") or [])
+        if isinstance(node, dict) and node.get("id")
+    }
+    covered_edges = _edge_ids_in_views(views)
+    source_node_ids = {str(n["id"]) for n in _nodes(doc)}
+    source_edge_ids = {str(e["id"]) for e in _edges(doc) if e.get("id")}
     manifest = {
         "source_spec": str(Path(spec_path)),
         "split_trigger": reasons or ["forced"],
         "source_metrics": metrics,
         "stable_ids": True,
         "invented_architecture_elements": False,
+        "coverage": {
+            "nodes_total": len(source_node_ids),
+            "nodes_covered": len(covered_nodes & source_node_ids),
+            "edges_total": len(source_edge_ids),
+            "edges_covered": len(covered_edges & source_edge_ids),
+            "missing_nodes": sorted(source_node_ids - covered_nodes),
+            "missing_edges": sorted(source_edge_ids - covered_edges),
+        },
         "views": manifest_views,
     }
     (outdir / "diagram-set.yaml").write_text(
