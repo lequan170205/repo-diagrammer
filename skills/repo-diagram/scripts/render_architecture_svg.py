@@ -150,7 +150,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("spec", type=Path)
     ap.add_argument("output", type=Path)
+    ap.add_argument("--spacing-scale", type=float, default=1.0,
+                    help="presentation-only spacing multiplier used by auto-repair")
     args = ap.parse_args()
+    spacing_scale = max(0.85, min(1.8, args.spacing_scale))
     doc = yaml.safe_load(args.spec.read_text(encoding="utf-8"))
 
     dtype = str(doc.get("type") or "")
@@ -169,8 +172,8 @@ def main():
     nmap = {n["id"]: n for n in nodes}
 
     margin = 70
-    row_gap = 105
-    node_gap = 34
+    row_gap = 105 * spacing_scale
+    node_gap = 34 * spacing_scale
     header = 112
     node_dims = {}
     row_widths = []

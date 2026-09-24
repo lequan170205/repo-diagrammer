@@ -235,6 +235,7 @@ repo-diagrammer/
 │   │   └── scripts/
 │   │       ├── render_any.sh
 │   │       ├── render_architecture_svg.py
+│   │       ├── render_polished.py
 │   │       ├── geometry_router.py
 │   │       ├── text_metrics.py
 │   │       ├── validate_spec.py

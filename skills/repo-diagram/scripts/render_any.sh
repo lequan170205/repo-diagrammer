@@ -26,7 +26,7 @@ case "$ext" in
   yaml|yml)
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if ! have python3; then echo "renderer unavailable: python3" >&2; exit 2; fi
-    python3 "$script_dir/render_architecture_svg.py" "$input" "$output" ;;
+    python3 "$script_dir/render_polished.py" "$input" "$output" ;;
   *) echo "unsupported extension: .$ext" >&2; exit 2 ;;
 esac
 [ -s "$output" ] || { echo "render failed: $output" >&2; exit 1; }

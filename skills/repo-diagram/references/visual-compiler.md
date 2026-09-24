@@ -13,7 +13,7 @@ Evidence IR
   → layout rows / ordering
   → renderer
   → geometry analyzer
-  → repair
+  → automatic presentation repair
   → render again
   → visual acceptance
 ```
@@ -42,6 +42,20 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics are
 the main value. The native renderer is intentionally not a replacement for Sequence,
 Class, ER, State, or rich UML Deployment notation.
+
+## Automatic repair loop
+
+Use `render_polished.py` as the default entry point for polished static architecture.
+It runs the native renderer and strict geometry analyzer, then retries with progressively
+roomier spacing when the Blocking defects are layout-repairable.
+
+Repair passes may change only presentation geometry. They must never change node
+identity, relation direction, grouping membership, protocol, evidence, or architectural
+boundaries.
+
+The loop stops immediately for defects such as unrelated-node region capture or
+ambiguous region overlap because those require model/grouping correction rather than
+more whitespace.
 
 ## Geometry gate
 
@@ -105,6 +119,6 @@ For a polished high-level architecture diagram, delivery requires all three:
 3. the final rendered image is inspected at 100% for typography, hierarchy and
    subjective balance that geometry checks cannot fully measure.
 
-Machine checks reduce visual mistakes; they do not replace human/agent visual review.
+Machine checks and automatic repair reduce visual mistakes; they do not replace human/agent visual review.
 Composition findings are warnings by default because asymmetric architectures can be
 legitimate; region ambiguity and containment defects are Blocking for native output.

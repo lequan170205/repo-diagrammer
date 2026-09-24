@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -102,6 +102,10 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
+  python3 "$core/scripts/render_polished.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-auto.svg" --max-passes 3 >/dev/null
+  [ -s "$tmp_visual/architecture-auto.svg" ]
+  bash "$core/scripts/render_any.sh" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture-any.svg" >/dev/null
+  [ -s "$tmp_visual/architecture-any.svg" ]
 
   cat > "$tmp_visual/same-row.spec.yaml" <<'YAML'
 question: same-row routing
@@ -218,6 +222,31 @@ SVG
 SVG
   python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/sparse.svg" > "$tmp_visual/sparse.out"
   grep -Eq 'EXCESS_BOTTOM_WHITESPACE|SPARSE_COMPOSITION' "$tmp_visual/sparse.out"
+
+  cat > "$tmp_visual/nonrepairable.spec.yaml" <<'YAML'
+question: nonrepairable grouping
+type: c4-container
+scope: self-test
+nodes:
+  - {id: a, label: A, semantic_role: domain, evidence: ["test"]}
+  - {id: b, label: B, semantic_role: domain, evidence: ["test"]}
+  - {id: c, label: C, semantic_role: domain, evidence: ["test"]}
+edges: []
+presentation:
+  style: polished-overview
+  groups:
+    - {id: bad, label: Bad Group, contains: [a, c]}
+layout:
+  rows:
+    - {id: row, nodes: [a, b, c]}
+  crossing_target: 0
+YAML
+  if python3 "$core/scripts/render_polished.py" "$tmp_visual/nonrepairable.spec.yaml" "$tmp_visual/nonrepairable.svg" --max-passes 3 >"$tmp_visual/nonrepairable.out" 2>&1; then
+    echo "expected non-repairable grouping to fail auto-repair" >&2
+    exit 1
+  fi
+  grep -q 'AUTO-REPAIR STOP' "$tmp_visual/nonrepairable.out"
+  grep -q 'REGION_CAPTURES_UNRELATED_NODE' "$tmp_visual/nonrepairable.out"
 
   rm -rf "$tmp_visual"
 fi
