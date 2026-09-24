@@ -72,6 +72,7 @@ Automatic splitting is semantics-preserving:
   membership is visible in that generated view;
 - omitted elements are recorded in `view.suppress`;
 - context elements are recorded in `view.context_nodes`.
+- primary-flow emphasis never bridges omitted nodes: split views preserve contiguous source runs in `view.primary_paths` and use the longest run for backward-compatible `view.primary_path`.
 
 The default generated set is an overview plus bounded detail views. The manifest
 records why splitting happened and explicitly states that stable IDs were preserved
