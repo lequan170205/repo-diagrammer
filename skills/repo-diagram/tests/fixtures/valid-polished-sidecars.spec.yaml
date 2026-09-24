@@ -36,6 +36,13 @@ nodes:
     responsibility: Push delivery
     semantic_role: external
     evidence: ["test:4"]
+  - id: external2
+    label: Object storage
+    kind: external-system
+    tech: S3
+    responsibility: Media storage
+    semantic_role: external
+    evidence: ["test:4b"]
 edges:
   - id: client_api
     from: client
@@ -64,6 +71,15 @@ edges:
     sync: true
     crosses_network: true
     evidence: ["test:7"]
+  - id: api_external2
+    from: api
+    to: external2
+    relation: calls
+    label: upload
+    protocol: HTTPS
+    sync: true
+    crosses_network: true
+    evidence: ["test:8"]
 interaction_fragments: []
 boundaries: []
 view:
@@ -83,7 +99,7 @@ layout:
     - {id: runtime, nodes: [api]}
     - {id: async, nodes: [broker]}
   sidecars:
-    right: [external]
+    right: [external, external2]
   crossing_target: 0
   edge_node_crossings_target: 0
   geometry_gate: required
