@@ -65,6 +65,32 @@ explicit user-provided project information, not inference from code.
 
 Presentation metadata controls appearance only and cannot add facts.
 
+## Renderer and layout contract
+
+`view.renderer` accepts `auto`, `native-svg`, `mermaid`, `plantuml`, or
+`graphviz`. `native-svg` is deliberately limited to static C4/high-level
+architecture views.
+
+Explicit layout references are validated against real node IDs:
+
+```yaml
+layout:
+  rows:
+    - id: runtime
+      nodes: [api, call]
+  sidecars:
+    left: []
+    right: [external-provider]
+    bottom: [postgres, prometheus]
+  crossing_target: 0
+  edge_node_crossings_target: 0
+  geometry_gate: required
+```
+
+A node may be in at most one explicit row or one sidecar zone, and never both.
+Sidecars are presentation placement only; they do not create architecture boundaries
+or relationships.
+
 
 ## Conceptual ER participation
 
