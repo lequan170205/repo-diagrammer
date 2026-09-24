@@ -91,6 +91,8 @@ view:
   fallback_renderer: auto
   story: ""
   primary_path: []
+  # Generated split views may retain multiple contiguous source-path runs.
+  primary_paths: []
   focus: []
   context_nodes: []
   suppress: []

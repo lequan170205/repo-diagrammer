@@ -30,6 +30,28 @@ def by_id(items):
     }
 
 
+def primary_runs(path, included):
+    included = set(included)
+    runs = []
+    current = []
+    for nid in [str(x) for x in (path or [])]:
+        if nid in included:
+            current.append(nid)
+        else:
+            if current:
+                runs.append(current)
+                current = []
+    if current:
+        runs.append(current)
+    return runs
+
+
+def longest_run(runs):
+    if not runs:
+        return []
+    return max(enumerate(runs), key=lambda item: (len(item[1]), -item[0]))[1]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("source", type=Path)
@@ -42,6 +64,7 @@ def main():
     source_nodes = by_id(source.get("nodes"))
     source_edges = by_id(source.get("edges"))
     source_boundaries = by_id(source.get("boundaries"))
+    source_primary = [str(x) for x in ((source.get("view") or {}).get("primary_path") or [])]
     errors = []
 
     if manifest.get("stable_ids") is not True:
@@ -140,6 +163,27 @@ def main():
             errors.append(f"{vid}: focus contains omitted IDs")
         if context & focus:
             errors.append(f"{vid}: node cannot be both focus and context")
+
+        expected_runs_all = primary_runs(source_primary, included)
+        expected_primary_paths = [run for run in expected_runs_all if len(run) >= 2]
+        expected_primary = longest_run(expected_runs_all)
+        actual_primary_paths = [
+            [str(x) for x in run]
+            for run in (view_meta.get("primary_paths") or [])
+            if isinstance(run, list)
+        ]
+        actual_primary = [str(x) for x in (view_meta.get("primary_path") or [])]
+        if actual_primary_paths != expected_primary_paths:
+            errors.append(
+                f"{vid}: primary_paths broke source continuity; expected "
+                f"{expected_primary_paths}, got {actual_primary_paths}"
+            )
+        if actual_primary != expected_primary:
+            errors.append(
+                f"{vid}: primary_path must be longest contiguous source run; "
+                f"expected {expected_primary}, got {actual_primary}"
+            )
+
         expected_suppressed = set(source_nodes) - included
         if suppressed != expected_suppressed:
             errors.append(
