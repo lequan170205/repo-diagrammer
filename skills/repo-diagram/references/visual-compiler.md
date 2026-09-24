@@ -43,6 +43,31 @@ Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics a
 the main value. The native renderer is intentionally not a replacement for Sequence,
 Class, ER, State, or rich UML Deployment notation.
 
+## Density planning and automatic splitting
+
+Before a polished architecture render, measure source-view density. By default a view
+is split when it exceeds the readability budget (currently >20 nodes, >32 edges on a
+non-trivial graph, or a high-degree hub above the configured threshold).
+
+Automatic splitting is semantics-preserving:
+
+- generated views reuse original node/edge IDs and evidence;
+- no synthetic subsystem/service nodes are invented;
+- the overview selects real primary/focus/high-degree nodes only;
+- detail views contain a bounded core plus a few real one-hop context nodes;
+- evidence-backed boundaries and presentation groups are shown only when their full
+  membership is visible in that generated view;
+- omitted elements are recorded in `view.suppress`;
+- context elements are recorded in `view.context_nodes`.
+
+The default generated set is an overview plus bounded detail views. The manifest
+records why splitting happened and explicitly states that stable IDs were preserved
+and no architecture elements were invented.
+
+Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
+let `render_polished.py` automatically create `<output-stem>.set/` when splitting is
+required.
+
 ## Automatic repair loop
 
 Use `render_polished.py` as the default entry point for polished static architecture.
