@@ -282,6 +282,19 @@ def segment_rect_cross(a, b, r: Box):
     return any(seg_intersect(a, b, q[i], q[(i+1) % 4]) for i in range(4))
 
 
+def collinear_overlap(a, b, c, d):
+    """Overlap length for axis-aligned collinear segments."""
+    if abs(a[0]-b[0]) < EPS and abs(c[0]-d[0]) < EPS and abs(a[0]-c[0]) < EPS:
+        lo = max(min(a[1], b[1]), min(c[1], d[1]))
+        hi = min(max(a[1], b[1]), max(c[1], d[1]))
+        return max(0.0, hi-lo)
+    if abs(a[1]-b[1]) < EPS and abs(c[1]-d[1]) < EPS and abs(a[1]-c[1]) < EPS:
+        lo = max(min(a[0], b[0]), min(c[0], d[0]))
+        hi = min(max(a[0], b[0]), max(c[0], d[0]))
+        return max(0.0, hi-lo)
+    return 0.0
+
+
 def route_len(points):
     return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
 
@@ -326,6 +339,13 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
             if overlap(label, b, 0):
                 findings.append(Finding(sev(), "LABEL_NODE_COLLISION",
                                         f"edge label {label.id} overlaps node {b.id}", [label.id, b.id]))
+        owner = label.id[:-6] if label.id.endswith("-label") else ""
+        for e in edges:
+            if e.id == owner:
+                continue
+            if any(segment_rect_cross(a, c, label) for a, c in zip(e.points, e.points[1:])):
+                findings.append(Finding(sev(), "LABEL_EDGE_COLLISION",
+                                        f"edge label {label.id} overlaps edge {e.id}", [label.id, e.id]))
     for i, a in enumerate(labels):
         for b in labels[i+1:]:
             if overlap(a, b, 0):
@@ -333,6 +353,12 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
                                         f"edge labels {a.id} and {b.id} overlap", [a.id, b.id]))
 
     for e in edges:
+        if native:
+            for a, c in zip(e.points, e.points[1:]):
+                if abs(a[0]-c[0]) > EPS and abs(a[1]-c[1]) > EPS:
+                    findings.append(Finding(sev(), "NON_ORTHOGONAL_ROUTE",
+                                            f"native edge {e.id} contains a diagonal segment", [e.id]))
+                    break
         for b in boxes:
             if b.id in {e.source, e.target}:
                 continue
@@ -346,19 +372,35 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
                                     f"edge {e.id} route is {length/direct:.1f}× direct distance", [e.id]))
 
     crossing_pairs = set()
+    overlap_pairs = set()
     for i, e1 in enumerate(edges):
         for e2 in edges[i+1:]:
-            if e1.source and e2.source and ({e1.source, e1.target} & {e2.source, e2.target}):
-                continue
+            shared_endpoint = bool(
+                e1.source and e2.source and ({e1.source, e1.target} & {e2.source, e2.target})
+            )
             hit = any(seg_intersect(a, b, c, d)
                       for a, b in zip(e1.points, e1.points[1:])
                       for c, d in zip(e2.points, e2.points[1:]))
-            if hit:
+            if hit and not shared_endpoint:
                 key = tuple(sorted((e1.id, e2.id)))
                 if key not in crossing_pairs:
                     crossing_pairs.add(key)
                     findings.append(Finding(sev(), "EDGE_EDGE_CROSSING",
                                             f"edges {e1.id} and {e2.id} cross", list(key)))
+            max_overlap = max(
+                [collinear_overlap(a, b, c, d)
+                 for a, b in zip(e1.points, e1.points[1:])
+                 for c, d in zip(e2.points, e2.points[1:])] or [0.0]
+            )
+            # A tiny shared port stub is normal. Long shared corridors are ambiguous.
+            threshold = 28.0 if shared_endpoint else 8.0
+            if max_overlap > threshold:
+                key = tuple(sorted((e1.id, e2.id)))
+                if key not in overlap_pairs:
+                    overlap_pairs.add(key)
+                    findings.append(Finding(sev(), "EDGE_EDGE_OVERLAP",
+                                            f"edges {e1.id} and {e2.id} share {max_overlap:.1f}px of route",
+                                            list(key)))
     return findings
 
 
