@@ -189,6 +189,20 @@ def main():
         last_findings = []
 
         typography_status = "unverified"
+        typography_nonrepairable = {
+            "TEXT_TOO_SMALL",
+            "TEXT_LINE_COLLISION",
+            "EDGE_LABEL_TEXT_TOO_SMALL",
+            "REGION_TEXT_TOO_SMALL",
+            "TITLE_TEXT_TOO_SMALL",
+            "SUBTITLE_TEXT_TOO_SMALL",
+            "ROW_HEADING_TEXT_TOO_SMALL",
+            "LEGEND_TEXT_TOO_SMALL",
+            "TITLE_SUBTITLE_COLLISION",
+            "REGION_HEADER_TEXT_COLLISION",
+            "ROW_HEADING_COLLISION",
+            "LEGEND_TEXT_COLLISION",
+        }
         crossing_codes = {"EDGE_EDGE_CROSSING", "EDGE_EDGE_OVERLAP", "CROSSING_BUDGET"}
         spacing_codes = {
             "NODE_OVERLAP", "EDGE_NODE_CROSSING", "LABEL_NODE_COLLISION",
@@ -260,6 +274,17 @@ def main():
                             f"{finding.get('message')}"
                         )
                     last_findings = typography_findings
+                    typography_codes = {
+                        str(finding.get("code") or "")
+                        for finding in typography_findings
+                    }
+                    if typography_codes & typography_nonrepairable:
+                        print(
+                            "AUTO-REPAIR STOP: typography defect requires text hierarchy/"
+                            "copy strategy correction, not more spacing.",
+                            file=sys.stderr,
+                        )
+                        return 1
                     text_scale = min(1.5, text_scale + 0.08)
                     spacing_scale = min(1.8, spacing_scale + 0.03)
                     continue
