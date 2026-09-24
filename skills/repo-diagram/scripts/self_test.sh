@@ -93,6 +93,8 @@ edges:
   - {id: e1, from: client, to: api, relation: calls, label: HTTPS, sync: true, evidence: ["test"]}
   - {id: e2, from: api, to: db, relation: writes, label: SQL, sync: true, evidence: ["test"]}
   - {id: e3, from: api, to: broker, relation: publishes, label: event, sync: false, evidence: ["test"]}
+view:
+  profile: architecture
 presentation:
   style: polished-overview
   title: Smoke Architecture
@@ -232,6 +234,8 @@ nodes:
   - {id: b, label: B, semantic_role: domain, evidence: ["test"]}
   - {id: c, label: C, semantic_role: domain, evidence: ["test"]}
 edges: []
+view:
+  profile: architecture
 presentation:
   style: polished-overview
   groups:
@@ -279,7 +283,7 @@ doc = {
     "scope": "self-test dense",
     "nodes": nodes,
     "edges": edges,
-    "view": {"primary_path": ["n00", "n01", "n02", "n03"]},
+    "view": {"profile": "architecture", "primary_path": ["n00", "n01", "n02", "n03"]},
     "presentation": {"style": "polished-overview", "title": "Dense Architecture"},
     "layout": {
         "crossing_target": 0,
