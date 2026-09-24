@@ -226,10 +226,10 @@ def main():
     out.append('<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
                '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>')
     out.append('<rect width="100%" height="100%" fill="#FFFFFF"/>')
-    out.append(f'<text x="{margin}" y="46" font-family="Inter,Arial,sans-serif" font-size="26" '
+    out.append(f'<text data-text-role="title" x="{margin}" y="46" font-family="Inter,Arial,sans-serif" font-size="26" '
                f'font-weight="700" fill="#0F172A">{esc(title)}</text>')
     if subtitle:
-        out.append(f'<text x="{margin}" y="72" font-family="Inter,Arial,sans-serif" font-size="13" '
+        out.append(f'<text data-text-role="subtitle" x="{margin}" y="72" font-family="Inter,Arial,sans-serif" font-size="13" '
                    f'fill="#64748B">{esc(subtitle)}</text>')
 
     # Edge labels must avoid not only nodes but also region header strips.
@@ -263,7 +263,7 @@ def main():
                    f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
                    'stroke-width="1.4" stroke-dasharray="8 6"/>'
-                   f'<text x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="region-header" x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
                    f'font-size="{region_font:.1f}" font-weight="700" fill="#475569">{esc(name)}</text></g>')
 
     groups = ((doc.get("presentation") or {}).get("groups") or [])
@@ -283,14 +283,14 @@ def main():
                    f'data-members="{esc(members)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
                    f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
                    'stroke="#CBD5E1" stroke-width="1"/>'
-                   f'<text x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="region-header" x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
                    f'font-size="{group_font:.1f}" font-weight="600" fill="#64748B">{esc(name)}</text></g>')
 
     for row in rows:
         if not row.get("label") or not row["nodes"]:
             continue
         ry = boxes[row["nodes"][0]][1]-18
-        out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
+        out.append(f'<text data-text-role="row-heading" x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
     primary_pairs = {
@@ -402,7 +402,7 @@ def main():
         out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
                    f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
                    'fill="#FFFFFF" fill-opacity="0.94"/>'
-                   f'<text x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="edge-label" x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
                    f'font-size="10.5" fill="#64748B">{esc(label)}</text></g>')
 
     for nid, (x, yy, w, h) in boxes.items():
@@ -417,7 +417,8 @@ def main():
         for li, (kind, line, size) in enumerate(lines):
             weight = "700" if kind == "title" else "400"
             color = "#0F172A" if kind == "title" else "#475569"
-            out.append(f'<text x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
+            text_role = "node-title" if kind == "title" else "node-detail"
+            out.append(f'<text data-text-role="{text_role}" x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
                        f'font-size="{size}" font-weight="{weight}" fill="{color}">{esc(line)}</text>')
         out.append("</g>")
 
@@ -425,11 +426,11 @@ def main():
         ly = canvas_h-34
         out.append(f'<g class="legend"><line x1="{margin}" y1="{ly}" x2="{margin+34}" y2="{ly}" '
                    'stroke="#475569" stroke-width="1.7"/>'
-                   f'<text x="{margin+42}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="legend" x="{margin+42}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
                    'font-size="10.5" fill="#64748B">sync</text>')
         out.append(f'<line x1="{margin+100}" y1="{ly}" x2="{margin+134}" y2="{ly}" '
                    'stroke="#475569" stroke-width="1.7" stroke-dasharray="7 6"/>'
-                   f'<text x="{margin+142}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="legend" x="{margin+142}" y="{ly+4}" font-family="Inter,Arial,sans-serif" '
                    'font-size="10.5" fill="#64748B">async/event</text></g>')
 
     out.append("</svg>")
