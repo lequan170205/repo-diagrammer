@@ -60,37 +60,24 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass "$core/tests/fixtures/valid-strict-class.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-chen.spec.yaml"
   expect_pass "$core/tests/fixtures/valid-strict-iso42010.spec.yaml"
+  expect_pass "$core/tests/fixtures/valid-polished-sidecars.spec.yaml"
 
   expect_fail "$core/tests/fixtures/invalid-missing-evidence.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-usecase.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-er.spec.yaml"
   expect_fail "$core/tests/fixtures/invalid-strict-iso42010.spec.yaml"
+  expect_fail "$core/tests/fixtures/invalid-layout-reference.spec.yaml"
 fi
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   tmp_visual="$(mktemp -d)"
-  cat > "$tmp_visual/architecture.spec.yaml" <<'YAML'
-question: smoke
-type: c4-container
-scope: self-test
-nodes:
-  - {id: client, label: Client, semantic_role: clients, evidence: ["test"]}
-  - {id: api, label: API, semantic_role: api, evidence: ["test"]}
-  - {id: broker, label: Broker, semantic_role: messaging, evidence: ["test"]}
-  - {id: db, label: DB, semantic_role: data, evidence: ["test"]}
-edges:
-  - {id: e1, from: client, to: api, relation: calls, label: HTTPS, sync: true, evidence: ["test"]}
-  - {id: e2, from: api, to: db, relation: writes, label: SQL, sync: true, evidence: ["test"]}
-  - {id: e3, from: api, to: broker, relation: publishes, label: event, sync: false, evidence: ["test"]}
-presentation:
-  style: polished-overview
-  title: Smoke Architecture
-  legend: {show: true}
-layout:
-  crossing_target: 0
-YAML
-  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
-  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/architecture.svg" --strict --max-crossings 0 >/dev/null
+  if ! bash "$core/scripts/render_any.sh" \
+    "$core/tests/fixtures/valid-polished-sidecars.spec.yaml" \
+    "$tmp_visual/architecture.svg" >"$tmp_visual/architecture.out" 2>&1; then
+    cat "$tmp_visual/architecture.out" >&2
+    exit 1
+  fi
+  grep -q 'data-node-id="external" data-layout-zone="right"' "$tmp_visual/architecture.svg"
 
   cat > "$tmp_visual/bad.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
@@ -101,9 +88,28 @@ YAML
 </svg>
 SVG
   if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/bad.svg" --strict >/dev/null 2>&1; then
-    echo "expected geometry defect was not detected" >&2
+    echo "expected edge-through-node defect was not detected" >&2
     exit 1
   fi
+
+  cat > "$tmp_visual/overlap.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <g data-edge-id="e1"><path d="M 20,80 L 280,80"/></g>
+  <g data-edge-id="e2"><path d="M 60,80 L 240,80"/></g>
+</svg>
+SVG
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/overlap.svg" --strict >"$tmp_visual/overlap.out" 2>&1 || true
+  grep -q "EDGE_EDGE_OVERLAP" "$tmp_visual/overlap.out"
+
+  cat > "$tmp_visual/label-cross.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <g data-edge-label-id="e1-label"><rect x="120" y="70" width="80" height="24"/></g>
+  <g data-edge-id="e1"><path d="M 40,50 L 100,50"/></g>
+  <g data-edge-id="e2"><path d="M 160,20 L 160,140"/></g>
+</svg>
+SVG
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/label-cross.svg" --strict >"$tmp_visual/label-cross.out" 2>&1 || true
+  grep -q "EDGE_LABEL_COLLISION" "$tmp_visual/label-cross.out"
   rm -rf "$tmp_visual"
 fi
 
