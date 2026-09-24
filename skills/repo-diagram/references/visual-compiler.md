@@ -29,8 +29,10 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 
 - deterministic layered placement;
 - barycentric ordering to reduce crossings;
+- distinct edge ports to prevent ambiguous shared stems;
 - orthogonal edge routing;
-- obstacle-aware perimeter routing for long cross-layer edges;
+- nearest-perimeter obstacle routing for long cross-layer edges;
+- explicit left/right/bottom sidecars for peripheral systems;
 - stable `data-node-id` and `data-edge-id` metadata for machine inspection.
 
 Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics are
@@ -49,7 +51,8 @@ The analyzer checks:
 
 - node overlap;
 - edge passing through unrelated nodes;
-- edge/edge crossings;
+- edge/edge crossings and overlapping edge segments;
+- edge/label and label/node collisions;
 - extremely tight node gaps;
 - suspiciously long routes;
 - extreme canvas aspect ratios.
