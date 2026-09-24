@@ -26,12 +26,35 @@ def _graph(edges, ids):
     return adj, degree
 
 
-def apply_initial_order(rows, edges, declaration_order=None, primary_path=None, variant=0):
+def _primary_paths(primary_path=None, primary_paths=None):
+    paths = []
+    for path in primary_paths or []:
+        if isinstance(path, (list, tuple)) and path:
+            paths.append([str(x) for x in path])
+    if not paths and primary_path:
+        paths = [[str(x) for x in primary_path]]
+    return paths
+
+
+def _primary_rank(primary_path=None, primary_paths=None):
+    rank = {}
+    counter = 0
+    for path in _primary_paths(primary_path, primary_paths):
+        for nid in path:
+            if nid not in rank:
+                rank[nid] = counter
+            counter += 1
+        counter += 1000
+    return rank
+
+
+def apply_initial_order(rows, edges, declaration_order=None, primary_path=None,
+                        primary_paths=None, variant=0):
     rows = copy.deepcopy(rows)
     ids = _node_ids(rows)
     adj, degree = _graph(edges, ids)
     decl = {str(n): i for i, n in enumerate(declaration_order or [])}
-    primary = {str(n): i for i, n in enumerate(primary_path or [])}
+    primary = _primary_rank(primary_path, primary_paths)
 
     for row in rows:
         original = {str(n): i for i, n in enumerate(row.get("nodes") or [])}
@@ -78,7 +101,7 @@ def barycentric_order(rows, edges, sweeps=6, reverse_sweep=False):
     return rows
 
 
-def crossing_score(rows, edges, primary_path=None):
+def crossing_score(rows, edges, primary_path=None, primary_paths=None):
     """Estimate crossings for edges connecting the same pair of layers."""
     loc = {}
     for ri, row in enumerate(rows):
@@ -116,24 +139,31 @@ def crossing_score(rows, edges, primary_path=None):
                     crossings += 1
 
     primary_penalty = 0
-    path = [str(x) for x in (primary_path or [])]
-    for a, b in zip(path, path[1:]):
-        if a in loc and b in loc:
-            ra, pa = loc[a]
-            rb, pb = loc[b]
-            primary_penalty += abs(ra-rb)*2 + abs(pa-pb)
+    paths = _primary_paths(primary_path, primary_paths)
+    primary_segments = 0
+    for path in paths:
+        for a, b in zip(path, path[1:]):
+            if a in loc and b in loc:
+                ra, pa = loc[a]
+                rb, pb = loc[b]
+                primary_penalty += abs(ra-rb)*2 + abs(pa-pb)
+                primary_segments += 1
 
     # Crossings dominate; compact routes and a coherent primary path break ties.
     return crossings*10_000 + primary_penalty*20 + distance, {
         "estimated_crossings": crossings,
         "distance_penalty": distance,
         "primary_penalty": primary_penalty,
+        "primary_paths": len(paths),
+        "primary_segments": primary_segments,
     }
 
 
-def hill_climb(rows, edges, primary_path=None, max_rounds=8):
+def hill_climb(rows, edges, primary_path=None, primary_paths=None, max_rounds=8):
     rows = copy.deepcopy(rows)
-    best_score, _ = crossing_score(rows, edges, primary_path)
+    best_score, _ = crossing_score(
+        rows, edges, primary_path=primary_path, primary_paths=primary_paths
+    )
     for _ in range(max_rounds):
         improved = False
         for ri, row in enumerate(rows):
@@ -142,7 +172,11 @@ def hill_climb(rows, edges, primary_path=None, max_rounds=8):
                 candidate = copy.deepcopy(rows)
                 cnodes = candidate[ri]["nodes"]
                 cnodes[i], cnodes[i+1] = cnodes[i+1], cnodes[i]
-                score, _ = crossing_score(candidate, edges, primary_path)
+                score, _ = crossing_score(
+                    candidate, edges,
+                    primary_path=primary_path,
+                    primary_paths=primary_paths,
+                )
                 if score < best_score:
                     rows = candidate
                     best_score = score
@@ -152,11 +186,13 @@ def hill_climb(rows, edges, primary_path=None, max_rounds=8):
     return rows
 
 
-def optimize_rows(rows, edges, declaration_order=None, primary_path=None, variant=0):
+def optimize_rows(rows, edges, declaration_order=None, primary_path=None,
+                  primary_paths=None, variant=0):
     seeded = apply_initial_order(
         rows, edges,
         declaration_order=declaration_order,
         primary_path=primary_path,
+        primary_paths=primary_paths,
         variant=variant % 4,
     )
     swept = barycentric_order(
@@ -164,8 +200,16 @@ def optimize_rows(rows, edges, declaration_order=None, primary_path=None, varian
         sweeps=5 + (variant % 2),
         reverse_sweep=(variant % 4) in {2, 3},
     )
-    optimized = hill_climb(swept, edges, primary_path=primary_path)
-    score, metrics = crossing_score(optimized, edges, primary_path)
+    optimized = hill_climb(
+        swept, edges,
+        primary_path=primary_path,
+        primary_paths=primary_paths,
+    )
+    score, metrics = crossing_score(
+        optimized, edges,
+        primary_path=primary_path,
+        primary_paths=primary_paths,
+    )
     metrics["score"] = score
     metrics["variant"] = variant % 4
     return optimized, metrics
