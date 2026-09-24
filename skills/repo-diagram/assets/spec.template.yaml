@@ -110,12 +110,16 @@ presentation:
 layout:
   direction: ""
   declaration_order: []
+  # Optional geometry-owned rows for polished static architecture.
+  # Example: { id: runtime, label: "Runtime services", nodes: [api, call] }
   rows: []
   sidecars:
     left: []
     right: []
     bottom: []
   crossing_target: 0
+  edge_node_crossings_target: 0
+  geometry_gate: required
   aspect_target: ""
 
 gaps: []
