@@ -33,6 +33,9 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - obstacle-aware perimeter routing for long cross-layer edges;
 - route scoring that penalizes node hits, crossings, long shared corridors, bends and route length;
 - geometry-aware label placement that avoids nodes, labels and unrelated edges;
+- distributed edge ports for high-degree nodes instead of one congested center port;
+- primary-path-first routing and emphasis when `view.primary_path` is supplied;
+- adaptive node height with wrapped responsibility copy;
 - stable `data-node-id` and `data-edge-id` metadata for machine inspection.
 
 Use Mermaid/PlantUML/Graphviz for diagram types where their notation semantics are
@@ -54,6 +57,7 @@ The analyzer checks:
 - edge/edge crossings;
 - long edge/edge overlaps (ambiguous shared corridors);
 - non-orthogonal native routes;
+- high-degree port congestion;
 - label/node, label/label and label/edge collisions;
 - extremely tight node gaps;
 - suspiciously long routes;

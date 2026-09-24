@@ -371,6 +371,27 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
             findings.append(Finding("warning", "LONG_ROUTE",
                                     f"edge {e.id} route is {length/direct:.1f}× direct distance", [e.id]))
 
+    # Native high-degree nodes should not funnel many edges through one identical port.
+    if native:
+        attachments = {}
+        for e in edges:
+            if e.source and e.points:
+                attachments.setdefault(e.source, []).append((e.id, e.points[0]))
+            if e.target and e.points:
+                attachments.setdefault(e.target, []).append((e.id, e.points[-1]))
+        for nid, items in attachments.items():
+            buckets = {}
+            for eid, point in items:
+                key = (round(point[0], 1), round(point[1], 1))
+                buckets.setdefault(key, []).append(eid)
+            for point, eids in buckets.items():
+                if len(eids) > 2:
+                    findings.append(Finding(
+                        sev(), "PORT_CONGESTION",
+                        f"node {nid} funnels {len(eids)} edges through port {point}",
+                        [nid] + eids
+                    ))
+
     crossing_pairs = set()
     overlap_pairs = set()
     for i, e1 in enumerate(edges):

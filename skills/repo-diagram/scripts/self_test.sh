@@ -97,10 +97,12 @@ question: same-row routing
 type: c4-container
 scope: self-test
 nodes:
-  - {id: a, label: Service A, semantic_role: domain, evidence: ["test"]}
+  - {id: a, label: Service A, semantic_role: domain, responsibility: "Processes a deliberately long responsibility sentence so adaptive node copy is exercised without clipping.", evidence: ["test"]}
   - {id: b, label: Service B, semantic_role: domain, evidence: ["test"]}
 edges:
   - {id: same, from: a, to: b, relation: calls, label: HTTP, sync: true, evidence: ["test"]}
+view:
+  primary_path: [a, b]
 presentation:
   style: polished-overview
   title: Same Row
@@ -109,6 +111,7 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" >/dev/null
   python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/same-row.svg" --strict --max-crossings 0 >/dev/null
+  grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
 
   cat > "$tmp_visual/bad.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
@@ -135,6 +138,22 @@ SVG
 SVG
   if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/overlap.svg" --strict >/dev/null 2>&1; then
     echo "expected overlapping-edge defect was not detected" >&2
+    exit 1
+  fi
+
+  cat > "$tmp_visual/congestion.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
+  <g data-node-id="hub"><rect x="160" y="20" width="100" height="50"/></g>
+  <g data-node-id="a"><rect x="20" y="190" width="70" height="40"/></g>
+  <g data-node-id="b"><rect x="120" y="190" width="70" height="40"/></g>
+  <g data-node-id="c"><rect x="220" y="190" width="70" height="40"/></g>
+  <g data-edge-id="p1" data-source-id="hub" data-target-id="a"><path d="M 210,70 L 210,120 L 55,120 L 55,190"/></g>
+  <g data-edge-id="p2" data-source-id="hub" data-target-id="b"><path d="M 210,70 L 210,140 L 155,140 L 155,190"/></g>
+  <g data-edge-id="p3" data-source-id="hub" data-target-id="c"><path d="M 210,70 L 210,160 L 255,160 L 255,190"/></g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/congestion.svg" --strict >/dev/null 2>&1; then
+    echo "expected port-congestion defect was not detected" >&2
     exit 1
   fi
   rm -rf "$tmp_visual"
