@@ -144,6 +144,9 @@ def main():
     seen_spec_paths = set()
     covered_node_ids = set()
     covered_edge_ids = set()
+    overview_nodes_seen = set()
+    overview_manifest_coverage = None
+    detail_cluster_cores = {}
     for view in manifest.get("views") or []:
         if not isinstance(view, dict):
             errors.append("manifest contains non-object view")
@@ -254,6 +257,8 @@ def main():
 
         node_count = len(nodes)
         if vid == "overview":
+            overview_nodes_seen = set(nodes)
+            overview_manifest_coverage = view.get("cluster_coverage")
             limit = budgets.get("overview_nodes")
             if isinstance(limit, int) and node_count > limit:
                 errors.append(
@@ -286,6 +291,7 @@ def main():
                     f"{vid}: {len(core_nodes)} core nodes exceeds detail core budget {core_limit}"
                 )
 
+            detail_cluster_cores[vid] = set(core_nodes)
             expected_quality = core_quality(core_nodes, source_edges)
             declared_quality = view.get("cluster_quality")
             if declared_quality != expected_quality:
@@ -372,6 +378,40 @@ def main():
                 errors.append(f"{vid}: coverage_edges references unknown source edge {eid!r}")
             elif eid not in edges:
                 errors.append(f"{vid}: coverage edge {eid!r} missing from generated view")
+
+    if overview_manifest_coverage is None:
+        errors.append("overview: missing cluster_coverage metadata")
+    else:
+        represented = sorted(
+            vid for vid, core in detail_cluster_cores.items()
+            if core & overview_nodes_seen
+        )
+        missing_clusters = sorted(
+            vid for vid, core in detail_cluster_cores.items()
+            if not (core & overview_nodes_seen)
+        )
+        expected_cluster_coverage = {
+            "clusters_total": len(detail_cluster_cores),
+            "clusters_represented": len(represented),
+            "represented_cluster_ids": represented,
+            "missing_cluster_ids": missing_clusters,
+        }
+        if overview_manifest_coverage != expected_cluster_coverage:
+            errors.append(
+                "overview: cluster_coverage mismatch; "
+                f"expected {expected_cluster_coverage!r}, got {overview_manifest_coverage!r}"
+            )
+
+        overview_limit = budgets.get("overview_nodes")
+        if (
+            isinstance(overview_limit, int)
+            and len(detail_cluster_cores) <= overview_limit
+            and missing_clusters
+        ):
+            errors.append(
+                "overview: budget can represent every detail cluster but misses "
+                f"{missing_clusters}"
+            )
 
     missing_nodes = set(source_nodes) - covered_node_ids
     missing_edges = set(source_edges) - covered_edge_ids
