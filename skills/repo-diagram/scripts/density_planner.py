@@ -628,6 +628,13 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
         "source_metrics": metrics,
         "stable_ids": True,
         "invented_architecture_elements": False,
+        "budgets": {
+            "overview_nodes": int(overview_nodes),
+            "detail_core_nodes": int(max_detail_nodes),
+            "detail_context_nodes": int(context_nodes),
+            "detail_total_nodes": int(max_detail_nodes + context_nodes),
+            "integration_nodes": int(max_detail_nodes),
+        },
         "coverage": {
             "nodes_total": len(source_node_ids),
             "nodes_covered": len(covered_nodes & source_node_ids),
