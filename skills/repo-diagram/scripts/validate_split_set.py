@@ -11,16 +11,6 @@ except ImportError:
     raise SystemExit("SPLIT-VALIDATOR unavailable: install PyYAML")
 
 
-NODE_FIELDS = (
-    "label", "display_label", "kind", "tech", "responsibility",
-    "stereotype", "semantic_role", "confidence",
-)
-EDGE_FIELDS = (
-    "from", "to", "relation", "label", "protocol", "sync", "crosses_network",
-    "condition", "guard", "data", "frequency", "confidence",
-)
-BOUNDARY_FIELDS = ("name", "kind", "contains")
-
 
 def by_id(items):
     return {
@@ -73,6 +63,7 @@ def main():
         errors.append("manifest.invented_architecture_elements must be false")
 
     seen_view_ids = set()
+    seen_spec_paths = set()
     covered_node_ids = set()
     covered_edge_ids = set()
     for view in manifest.get("views") or []:
@@ -91,7 +82,12 @@ def main():
         if not spec_rel:
             errors.append(f"{vid}: missing spec path")
             continue
-        spec_path = args.manifest.parent / str(spec_rel)
+        spec_key = str(spec_rel)
+        if spec_key in seen_spec_paths:
+            errors.append(f"{vid}: duplicate generated spec path {spec_key!r}")
+        seen_spec_paths.add(spec_key)
+
+        spec_path = args.manifest.parent / spec_key
         if not spec_path.exists():
             errors.append(f"{vid}: generated spec missing: {spec_path}")
             continue
@@ -100,6 +96,15 @@ def main():
         nodes = by_id(doc.get("nodes"))
         edges = by_id(doc.get("edges"))
         boundaries = by_id(doc.get("boundaries"))
+
+        if view.get("node_count") != len(nodes):
+            errors.append(
+                f"{vid}: manifest node_count {view.get('node_count')!r} != actual {len(nodes)}"
+            )
+        if view.get("edge_count") != len(edges):
+            errors.append(
+                f"{vid}: manifest edge_count {view.get('edge_count')!r} != actual {len(edges)}"
+            )
         covered_node_ids.update(nodes)
         covered_edge_ids.update(edges)
 
@@ -108,28 +113,22 @@ def main():
             if original is None:
                 errors.append(f"{vid}: invented node {nid!r}")
                 continue
-            for field in NODE_FIELDS:
-                if node.get(field) != original.get(field):
-                    errors.append(
-                        f"{vid}: node {nid!r} changed {field}: "
-                        f"{original.get(field)!r} -> {node.get(field)!r}"
-                    )
-            if node.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: node {nid!r} changed evidence")
+            if node != original:
+                errors.append(
+                    f"{vid}: node {nid!r} differs from source element; "
+                    "split views must reuse source nodes verbatim"
+                )
 
         for eid, edge in edges.items():
             original = source_edges.get(eid)
             if original is None:
                 errors.append(f"{vid}: invented edge {eid!r}")
                 continue
-            for field in EDGE_FIELDS:
-                if edge.get(field) != original.get(field):
-                    errors.append(
-                        f"{vid}: edge {eid!r} changed {field}: "
-                        f"{original.get(field)!r} -> {edge.get(field)!r}"
-                    )
-            if edge.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: edge {eid!r} changed evidence")
+            if edge != original:
+                errors.append(
+                    f"{vid}: edge {eid!r} differs from source element; "
+                    "split views must reuse source relations verbatim"
+                )
             if str(edge.get("from")) not in nodes or str(edge.get("to")) not in nodes:
                 errors.append(f"{vid}: edge {eid!r} endpoint missing from generated view")
 
@@ -138,20 +137,23 @@ def main():
             if original is None:
                 errors.append(f"{vid}: invented boundary {bid!r}")
                 continue
-            for field in BOUNDARY_FIELDS:
-                left = boundary.get(field)
-                right = original.get(field)
-                if field == "contains":
-                    left = [str(x) for x in (left or [])]
-                    right = [str(x) for x in (right or [])]
-                if left != right:
-                    errors.append(
-                        f"{vid}: boundary {bid!r} changed {field}: {right!r} -> {left!r}"
-                    )
-            if boundary.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: boundary {bid!r} changed evidence")
+            if boundary != original:
+                errors.append(
+                    f"{vid}: boundary {bid!r} differs from source element; "
+                    "real boundaries must be reused verbatim"
+                )
 
         view_meta = doc.get("view") or {}
+        if view_meta.get("split_generated") is not True:
+            errors.append(f"{vid}: generated spec missing view.split_generated=true")
+        split_kind = str(view_meta.get("split_kind") or "")
+        if vid == "overview" and split_kind != "overview":
+            errors.append(f"{vid}: expected split_kind='overview', got {split_kind!r}")
+        if vid.startswith("integration-") and split_kind != "integration":
+            errors.append(f"{vid}: expected split_kind='integration', got {split_kind!r}")
+        if vid != "overview" and not vid.startswith("integration-") and split_kind != "detail":
+            errors.append(f"{vid}: expected split_kind='detail', got {split_kind!r}")
+
         included = set(nodes)
         context = {str(x) for x in (view_meta.get("context_nodes") or [])}
         focus = {str(x) for x in (view_meta.get("focus") or [])}
