@@ -304,10 +304,43 @@ def main():
             "--dump-dom",
             html_path.resolve().as_uri(),
         ]
-        proc = subprocess.run(cmd, text=True, capture_output=True, timeout=20)
+        attempts = [
+            (cmd, 25),
+            ([arg if arg != "--headless=new" else "--headless" for arg in cmd], 40),
+        ]
+        proc = None
+        timeout_errors = []
+        for attempt_no, (attempt_cmd, timeout_seconds) in enumerate(attempts, start=1):
+            try:
+                proc = subprocess.run(
+                    attempt_cmd,
+                    text=True,
+                    capture_output=True,
+                    timeout=timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                timeout_errors.append(
+                    f"attempt {attempt_no} timed out after {timeout_seconds}s"
+                )
+                continue
+            if proc.returncode == 0:
+                break
+
+    if proc is None:
+        print(
+            "BROWSER-TYPOGRAPHY ERROR: browser execution timed out; "
+            + "; ".join(timeout_errors),
+            file=sys.stderr,
+        )
+        return 2
 
     if proc.returncode != 0:
-        print("BROWSER-TYPOGRAPHY ERROR: browser execution failed", file=sys.stderr)
+        detail = "; ".join(timeout_errors)
+        suffix = f" after {detail}" if detail else ""
+        print(
+            "BROWSER-TYPOGRAPHY ERROR: browser execution failed" + suffix,
+            file=sys.stderr,
+        )
         if proc.stderr:
             print(proc.stderr[-2000:], file=sys.stderr)
         return 2
