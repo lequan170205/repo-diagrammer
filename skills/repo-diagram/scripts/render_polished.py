@@ -70,11 +70,13 @@ def main():
     layout = doc.get("layout") or {}
     crossing_target = int(layout.get("crossing_target", 0) or 0)
 
-    auto_split_cfg = layout.get("auto_split") or {}
+    auto_split_cfg = layout.get("auto_split", {})
     if auto_split_cfg is False:
         auto_split_cfg = {"enabled": False}
     elif auto_split_cfg is True:
         auto_split_cfg = {"enabled": True}
+    elif not isinstance(auto_split_cfg, dict):
+        auto_split_cfg = {}
     enabled = bool(auto_split_cfg.get("enabled", True))
     max_nodes = int(auto_split_cfg.get("max_nodes", DEFAULT_MAX_NODES) or DEFAULT_MAX_NODES)
     detail_nodes = int(auto_split_cfg.get("detail_nodes", DEFAULT_DETAIL_NODES) or DEFAULT_DETAIL_NODES)
