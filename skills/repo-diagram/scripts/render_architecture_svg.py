@@ -164,6 +164,8 @@ def main():
 
     layout = doc.get("layout") or {}
     view = doc.get("view") or {}
+    focus_ids = {str(x) for x in (view.get("focus") or [])}
+    context_ids = {str(x) for x in (view.get("context_nodes") or [])}
     primary_path = [str(x) for x in (view.get("primary_path") or [])]
     raw_primary_paths = view.get("primary_paths") or []
     primary_paths = [
@@ -249,6 +251,12 @@ def main():
                 "key": "async-event",
                 "kind": "edge-async",
                 "label": "Async / event",
+            })
+        if context_ids:
+            legend_items.append({
+                "key": "context-node",
+                "kind": "context-node",
+                "label": "Context node",
             })
 
         present_roles = {node_role(node) for node in nodes}
@@ -494,14 +502,31 @@ def main():
         node = nmap[nid]
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
+        if nid in context_ids:
+            visual_scope = "context"
+        elif nid in focus_ids:
+            visual_scope = "focus"
+        else:
+            visual_scope = "default"
+        is_context = visual_scope == "context"
+        fill_opacity = "0.38" if is_context else "1"
+        stroke_opacity = "0.65" if is_context else "1"
+        dash = ' stroke-dasharray="5 4"' if is_context else ""
         lines = node_lines(node, w, text_width_scale)
-        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"><rect x="{x:.1f}" y="{yy:.1f}" '
-                   f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
-                   f'stroke-width="1.5"/>')
+        out.append(
+            f'<g class="node" data-node-id="{esc(nid)}" '
+            f'data-row-index="{row_index[nid]}" data-visual-scope="{visual_scope}">'
+            f'<rect x="{x:.1f}" y="{yy:.1f}" width="{w:.1f}" height="{h:.1f}" '
+            f'rx="12" fill="{fill}" fill-opacity="{fill_opacity}" stroke="{stroke}" '
+            f'stroke-opacity="{stroke_opacity}" stroke-width="1.5"{dash}/>'
+        )
         base = yy+27
         for li, (kind, line, size) in enumerate(lines):
             weight = "700" if kind == "title" else "400"
-            color = "#0F172A" if kind == "title" else "#475569"
+            if is_context:
+                color = "#475569" if kind == "title" else "#64748B"
+            else:
+                color = "#0F172A" if kind == "title" else "#475569"
             text_role = "node-title" if kind == "title" else "node-detail"
             out.append(f'<text data-text-role="{text_role}" x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
                        f'font-size="{size}" font-weight="{weight}" fill="{color}">{esc(line)}</text>')
@@ -529,6 +554,13 @@ def main():
                     out.append(
                         f'<rect x="{item_x:.1f}" y="{item_y-10:.1f}" width="18" height="12" '
                         f'rx="4" fill="{fill}" stroke="{stroke}" stroke-width="1.2"/>'
+                    )
+                    text_x = item_x+26
+                elif kind == "context-node":
+                    out.append(
+                        f'<rect x="{item_x:.1f}" y="{item_y-10:.1f}" width="18" height="12" '
+                        'rx="4" fill="#F8FAFC" fill-opacity="0.38" stroke="#64748B" '
+                        'stroke-opacity="0.65" stroke-width="1.2" stroke-dasharray="4 3"/>'
                     )
                     text_x = item_x+26
                 else:

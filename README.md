@@ -121,7 +121,8 @@ density and legend semantics can be Blocking defects. Dense polished architectur
 views are automatically split into a real-node overview plus bounded detail views
 before rendering; generated views preserve stable source IDs and are validated for
 verbatim source semantics, full relation coverage, manifest-enforced view budgets,
-and contiguous primary-flow runs that remain layout-significant after splitting.
+contiguous primary-flow runs that remain layout-significant after splitting, and a
+visible focus/context hierarchy in generated detail views.
 
 For polished static architecture, the native visual compiler owns node geometry,
 orthogonal edge routing, and a wrapped semantic legend inferred from active primary-flow,
