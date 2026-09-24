@@ -501,7 +501,8 @@ def main():
             pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
         )
         placed_labels.append((lx, ly, lw, lh))
-        out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
+        out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label" '
+                   f'data-owner-edge-id="{esc(eid)}">'
                    f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
                    'fill="#FFFFFF" fill-opacity="0.94"/>'
                    f'<text data-text-role="edge-label" x="{lx+7:.1f}" y="{ly+13.5:.1f}" font-family="Inter,Arial,sans-serif" '
