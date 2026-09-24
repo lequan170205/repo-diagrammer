@@ -128,6 +128,8 @@ For polished static architecture, the native visual compiler owns node geometry,
 orthogonal edge routing, and a wrapped semantic legend inferred from active primary-flow,
 sync/async, and node-role encodings. `visual_analyze_svg.py` mechanically checks node overlap,
 edge-through-node defects, edge/edge crossings, tight gaps and route stretch.
+`visual_accessibility.py` verifies accessible SVG names, text/edge contrast, and
+non-colour encodings for async/context semantics.
 When Chrome/Chromium is available, `browser_typography.py` additionally measures
 actual SVG text bounds with `getBBox()`, verifies title/subtitle/row/legend hierarchy,
 region and edge-label readability, and blocks text collisions before the final 100%
@@ -254,6 +256,7 @@ repo-diagrammer/
 │   │       ├── validate_spec.py
 │   │       ├── visual_lint_svg.py
 │   │       ├── visual_analyze_svg.py
+│   │       ├── visual_accessibility.py
 │   │       └── self_test.sh
 │   ├── diagram/
 │   ├── diagram-review/
