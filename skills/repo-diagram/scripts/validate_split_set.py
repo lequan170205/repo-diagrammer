@@ -11,16 +11,6 @@ except ImportError:
     raise SystemExit("SPLIT-VALIDATOR unavailable: install PyYAML")
 
 
-NODE_FIELDS = (
-    "label", "display_label", "kind", "tech", "responsibility",
-    "stereotype", "semantic_role", "confidence",
-)
-EDGE_FIELDS = (
-    "from", "to", "relation", "label", "protocol", "sync", "crosses_network",
-    "condition", "guard", "data", "frequency", "confidence",
-)
-BOUNDARY_FIELDS = ("name", "kind", "contains")
-
 
 def by_id(items):
     return {
@@ -64,6 +54,10 @@ def main():
     source_nodes = by_id(source.get("nodes"))
     source_edges = by_id(source.get("edges"))
     source_boundaries = by_id(source.get("boundaries"))
+    source_groups = [
+        g for g in ((source.get("presentation") or {}).get("groups") or [])
+        if isinstance(g, dict)
+    ]
     source_primary = [str(x) for x in ((source.get("view") or {}).get("primary_path") or [])]
     errors = []
 
@@ -72,7 +66,26 @@ def main():
     if manifest.get("invented_architecture_elements") is not False:
         errors.append("manifest.invented_architecture_elements must be false")
 
+    budgets = manifest.get("budgets") or {}
+    required_budget_fields = {
+        "overview_nodes",
+        "detail_core_nodes",
+        "detail_context_nodes",
+        "detail_total_nodes",
+        "integration_nodes",
+    }
+    if not isinstance(budgets, dict):
+        errors.append("manifest.budgets must be a mapping")
+        budgets = {}
+    else:
+        missing_budget_fields = required_budget_fields - set(budgets)
+        if missing_budget_fields:
+            errors.append(
+                f"manifest.budgets missing field(s): {sorted(missing_budget_fields)}"
+            )
+
     seen_view_ids = set()
+    seen_spec_paths = set()
     covered_node_ids = set()
     covered_edge_ids = set()
     for view in manifest.get("views") or []:
@@ -91,7 +104,12 @@ def main():
         if not spec_rel:
             errors.append(f"{vid}: missing spec path")
             continue
-        spec_path = args.manifest.parent / str(spec_rel)
+        spec_key = str(spec_rel)
+        if spec_key in seen_spec_paths:
+            errors.append(f"{vid}: duplicate generated spec path {spec_key!r}")
+        seen_spec_paths.add(spec_key)
+
+        spec_path = args.manifest.parent / spec_key
         if not spec_path.exists():
             errors.append(f"{vid}: generated spec missing: {spec_path}")
             continue
@@ -100,6 +118,28 @@ def main():
         nodes = by_id(doc.get("nodes"))
         edges = by_id(doc.get("edges"))
         boundaries = by_id(doc.get("boundaries"))
+        groups = [
+            g for g in ((doc.get("presentation") or {}).get("groups") or [])
+            if isinstance(g, dict)
+        ]
+
+        # Derived views may alter scope/title/layout/view metadata, but immutable
+        # source identity and conformance metadata must survive verbatim.
+        for field in ("question", "type", "audience", "commit", "conformance",
+                      "architecture_description", "gaps"):
+            if doc.get(field) != source.get(field):
+                errors.append(
+                    f"{vid}: immutable source field {field!r} changed during split"
+                )
+
+        if view.get("node_count") != len(nodes):
+            errors.append(
+                f"{vid}: manifest node_count {view.get('node_count')!r} != actual {len(nodes)}"
+            )
+        if view.get("edge_count") != len(edges):
+            errors.append(
+                f"{vid}: manifest edge_count {view.get('edge_count')!r} != actual {len(edges)}"
+            )
         covered_node_ids.update(nodes)
         covered_edge_ids.update(edges)
 
@@ -108,28 +148,22 @@ def main():
             if original is None:
                 errors.append(f"{vid}: invented node {nid!r}")
                 continue
-            for field in NODE_FIELDS:
-                if node.get(field) != original.get(field):
-                    errors.append(
-                        f"{vid}: node {nid!r} changed {field}: "
-                        f"{original.get(field)!r} -> {node.get(field)!r}"
-                    )
-            if node.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: node {nid!r} changed evidence")
+            if node != original:
+                errors.append(
+                    f"{vid}: node {nid!r} differs from source element; "
+                    "split views must reuse source nodes verbatim"
+                )
 
         for eid, edge in edges.items():
             original = source_edges.get(eid)
             if original is None:
                 errors.append(f"{vid}: invented edge {eid!r}")
                 continue
-            for field in EDGE_FIELDS:
-                if edge.get(field) != original.get(field):
-                    errors.append(
-                        f"{vid}: edge {eid!r} changed {field}: "
-                        f"{original.get(field)!r} -> {edge.get(field)!r}"
-                    )
-            if edge.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: edge {eid!r} changed evidence")
+            if edge != original:
+                errors.append(
+                    f"{vid}: edge {eid!r} differs from source element; "
+                    "split views must reuse source relations verbatim"
+                )
             if str(edge.get("from")) not in nodes or str(edge.get("to")) not in nodes:
                 errors.append(f"{vid}: edge {eid!r} endpoint missing from generated view")
 
@@ -138,20 +172,64 @@ def main():
             if original is None:
                 errors.append(f"{vid}: invented boundary {bid!r}")
                 continue
-            for field in BOUNDARY_FIELDS:
-                left = boundary.get(field)
-                right = original.get(field)
-                if field == "contains":
-                    left = [str(x) for x in (left or [])]
-                    right = [str(x) for x in (right or [])]
-                if left != right:
-                    errors.append(
-                        f"{vid}: boundary {bid!r} changed {field}: {right!r} -> {left!r}"
-                    )
-            if boundary.get("evidence") != original.get("evidence"):
-                errors.append(f"{vid}: boundary {bid!r} changed evidence")
+            if boundary != original:
+                errors.append(
+                    f"{vid}: boundary {bid!r} differs from source element; "
+                    "real boundaries must be reused verbatim"
+                )
+
+        for group in groups:
+            if group not in source_groups:
+                gid = group.get("id") or group.get("label") or "<unnamed>"
+                errors.append(
+                    f"{vid}: presentation group {gid!r} was invented or changed during split"
+                )
 
         view_meta = doc.get("view") or {}
+        if view_meta.get("split_generated") is not True:
+            errors.append(f"{vid}: generated spec missing view.split_generated=true")
+        split_kind = str(view_meta.get("split_kind") or "")
+        if vid == "overview" and split_kind != "overview":
+            errors.append(f"{vid}: expected split_kind='overview', got {split_kind!r}")
+        if vid.startswith("integration-") and split_kind != "integration":
+            errors.append(f"{vid}: expected split_kind='integration', got {split_kind!r}")
+        if vid != "overview" and not vid.startswith("integration-") and split_kind != "detail":
+            errors.append(f"{vid}: expected split_kind='detail', got {split_kind!r}")
+
+        node_count = len(nodes)
+        if vid == "overview":
+            limit = budgets.get("overview_nodes")
+            if isinstance(limit, int) and node_count > limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds overview budget {limit}"
+                )
+        elif vid.startswith("integration-"):
+            limit = budgets.get("integration_nodes")
+            if isinstance(limit, int) and node_count > limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds integration budget {limit}"
+                )
+        else:
+            total_limit = budgets.get("detail_total_nodes")
+            core_limit = budgets.get("detail_core_nodes")
+            context_limit = budgets.get("detail_context_nodes")
+            if isinstance(total_limit, int) and node_count > total_limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds detail total budget {total_limit}"
+                )
+            core_nodes = {str(x) for x in (view.get("core_nodes") or [])}
+            if isinstance(core_limit, int) and len(core_nodes) > core_limit:
+                errors.append(
+                    f"{vid}: {len(core_nodes)} core nodes exceeds detail core budget {core_limit}"
+                )
+            declared_context = {
+                str(x) for x in ((doc.get("view") or {}).get("context_nodes") or [])
+            }
+            if isinstance(context_limit, int) and len(declared_context) > context_limit:
+                errors.append(
+                    f"{vid}: {len(declared_context)} context nodes exceeds detail context budget {context_limit}"
+                )
+
         included = set(nodes)
         context = {str(x) for x in (view_meta.get("context_nodes") or [])}
         focus = {str(x) for x in (view_meta.get("focus") or [])}
@@ -163,6 +241,18 @@ def main():
             errors.append(f"{vid}: focus contains omitted IDs")
         if context & focus:
             errors.append(f"{vid}: node cannot be both focus and context")
+
+        manifest_core = {str(x) for x in (view.get("core_nodes") or [])}
+        if manifest_core != focus:
+            errors.append(
+                f"{vid}: manifest core_nodes must match generated view.focus; "
+                f"{sorted(manifest_core)} != {sorted(focus)}"
+            )
+        if focus | context != included:
+            errors.append(
+                f"{vid}: every included node must be classified as focus or context; "
+                f"unclassified={sorted(included - (focus | context))}"
+            )
 
         expected_runs_all = primary_runs(source_primary, included)
         expected_primary_paths = [run for run in expected_runs_all if len(run) >= 2]
