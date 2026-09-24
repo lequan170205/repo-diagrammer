@@ -59,6 +59,9 @@ Automatic splitting is semantics-preserving:
 - if bounded context would leave source relations unrepresented, the planner adds bounded integration views containing only the real endpoints of those uncovered edges;
 - evidence-backed boundaries and presentation groups are shown only when their full
   membership is visible in that generated view;
+- a real boundary may never disappear silently: if normal detail views omit it, a
+  dedicated full-membership boundary view is generated when it fits the detail budget;
+  oversized boundaries are explicitly disclosed in the manifest rather than drawn partially;
 - omitted elements are recorded in `view.suppress`;
 - context elements are recorded in `view.context_nodes`;
 - primary-flow emphasis never bridges omitted nodes: split views preserve contiguous source runs in `view.primary_paths` and use the longest run for backward-compatible `view.primary_path`.
@@ -68,7 +71,10 @@ records why splitting happened and explicitly states that stable IDs were preser
 and no architecture elements were invented. Before any generated view is rendered,
 `validate_split_set.py` compares every selected node, edge, protocol, sync flag,
 evidence field and complete boundary against the source spec, and requires 100% source
-node/edge coverage across the generated set.
+node/edge coverage across the generated set. Real boundary coverage is also validated:
+missing boundaries must either appear in a full-membership generated view or be
+explicitly disclosed as unrepresented because their membership exceeds the configured
+view budget.
 
 Use `density_planner.py <spec> <outdir> --check` to inspect the density decision, or
 let `render_polished.py` automatically create `<output-stem>.set/` when splitting is
