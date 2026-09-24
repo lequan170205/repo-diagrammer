@@ -195,6 +195,7 @@ def dedupe_boxes(boxes):
 
 def extract(root):
     boxes = []
+    labels = []
     edges = []
     native = False
     for el, ox, oy in walk(root):
@@ -205,6 +206,12 @@ def extract(root):
             b = rect_from_group(el, ox, oy, node_id, "native")
             if b:
                 boxes.append(b)
+                native = True
+        label_id = el.attrib.get("data-edge-label-id")
+        if label_id:
+            b = rect_from_group(el, ox, oy, label_id, "native")
+            if b:
+                labels.append(b)
                 native = True
         edge_id = el.attrib.get("data-edge-id")
         if edge_id:
@@ -221,7 +228,7 @@ def extract(root):
                                   el.attrib.get("data-target-id", ""), "native"))
                 native = True
     if native:
-        return boxes, edges, True
+        return boxes, labels, edges, True
 
     # Common Mermaid / Graphviz group conventions. These are warnings by default
     # because third-party renderer DOMs change between versions.
@@ -247,7 +254,7 @@ def extract(root):
             if len(pts) >= 2:
                 edges.append(Edge(el.attrib.get("id") or f"edge-{idxe}", pts, confidence="heuristic"))
                 idxe += 1
-    return dedupe_boxes(boxes), edges, False
+    return dedupe_boxes(boxes), labels, edges, False
 
 
 def overlap(a: Box, b: Box, pad=0.0):
@@ -288,7 +295,7 @@ def canvas_size(root):
     return n(root.attrib.get("width")), n(root.attrib.get("height"))
 
 
-def analyze(root, boxes, edges, native, strict_heuristic=False):
+def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
     findings = []
 
     def sev(block=True):
@@ -313,6 +320,17 @@ def analyze(root, boxes, edges, native, strict_heuristic=False):
                 if 0 < gap < 12:
                     findings.append(Finding("warning", "TIGHT_NODE_GAP",
                                             f"nodes {a.id} and {b.id} are only {gap:.1f}px apart", [a.id, b.id]))
+
+    for label in labels:
+        for b in boxes:
+            if overlap(label, b, 0):
+                findings.append(Finding(sev(), "LABEL_NODE_COLLISION",
+                                        f"edge label {label.id} overlaps node {b.id}", [label.id, b.id]))
+    for i, a in enumerate(labels):
+        for b in labels[i+1:]:
+            if overlap(a, b, 0):
+                findings.append(Finding(sev(), "LABEL_LABEL_COLLISION",
+                                        f"edge labels {a.id} and {b.id} overlap", [a.id, b.id]))
 
     for e in edges:
         for b in boxes:
@@ -359,8 +377,8 @@ def main():
         print(f"VISUAL-ANALYZER ERROR: {exc}", file=sys.stderr)
         return 2
 
-    boxes, edges, native = extract(root)
-    findings = analyze(root, boxes, edges, native, args.strict_heuristic)
+    boxes, labels, edges, native = extract(root)
+    findings = analyze(root, boxes, labels, edges, native, args.strict_heuristic)
     crossings = sum(1 for f in findings if f.code == "EDGE_EDGE_CROSSING")
     if args.max_crossings is not None and crossings > args.max_crossings:
         findings.append(Finding("blocking" if native or args.strict_heuristic else "warning",
@@ -371,11 +389,12 @@ def main():
         "file": str(args.svg),
         "geometry": "native" if native else "heuristic",
         "nodes": len(boxes),
+        "labels": len(labels),
         "edges": len(edges),
         "crossings": crossings,
         "findings": [asdict(f) for f in findings],
     }
-    print(f"VISUAL-ANALYZER: {args.svg.name} — {len(boxes)} nodes, {len(edges)} edges, geometry={report['geometry']}")
+    print(f"VISUAL-ANALYZER: {args.svg.name} — {len(boxes)} nodes, {len(labels)} labels, {len(edges)} edges, geometry={report['geometry']}")
     for f in findings:
         print(f"  {f.severity.upper()} {f.code}: {f.message}")
     if not findings:
