@@ -79,9 +79,9 @@ nodes:
   - {id: broker, label: Broker, semantic_role: messaging, evidence: ["test"]}
   - {id: db, label: DB, semantic_role: data, evidence: ["test"]}
 edges:
-  - {id: e1, from: client, to: api, relation: calls, sync: true, evidence: ["test"]}
-  - {id: e2, from: api, to: db, relation: writes, sync: true, evidence: ["test"]}
-  - {id: e3, from: api, to: broker, relation: publishes, sync: false, evidence: ["test"]}
+  - {id: e1, from: client, to: api, relation: calls, label: HTTPS, sync: true, evidence: ["test"]}
+  - {id: e2, from: api, to: db, relation: writes, label: SQL, sync: true, evidence: ["test"]}
+  - {id: e3, from: api, to: broker, relation: publishes, label: event, sync: false, evidence: ["test"]}
 presentation:
   style: polished-overview
   title: Smoke Architecture
