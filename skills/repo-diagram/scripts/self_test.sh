@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -113,6 +113,32 @@ YAML
   python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/same-row.svg" --strict --max-crossings 0 >/dev/null
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
 
+  cat > "$tmp_visual/regions.spec.yaml" <<'YAML'
+question: region geometry
+type: c4-container
+scope: self-test
+nodes:
+  - {id: a, label: "IIIIIIIIIIII", semantic_role: domain, evidence: ["test"]}
+  - {id: b, label: "WWWWWWWWWWWW", semantic_role: domain, evidence: ["test"]}
+edges:
+  - {id: ab, from: a, to: b, relation: calls, label: "HTTP / internal", sync: true, evidence: ["test"]}
+boundaries:
+  - {id: runtime, name: Runtime, contains: [a, b], kind: process, evidence: ["test"]}
+presentation:
+  style: polished-overview
+  title: Region Geometry
+  groups:
+    - {id: pair, label: Core Pair, contains: [a, b]}
+layout:
+  rows:
+    - {id: core, label: Core, nodes: [a, b]}
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/regions.spec.yaml" "$tmp_visual/regions.svg" >/dev/null
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/regions.svg" --strict --max-crossings 0 >/dev/null
+  grep -q 'data-region-kind="boundary"' "$tmp_visual/regions.svg"
+  grep -q 'data-region-kind="presentation"' "$tmp_visual/regions.svg"
+
   cat > "$tmp_visual/bad.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
   <g data-node-id="a"><rect x="20" y="20" width="80" height="50"/></g>
@@ -156,6 +182,32 @@ SVG
     echo "expected port-congestion defect was not detected" >&2
     exit 1
   fi
+
+  cat > "$tmp_visual/bad-region.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260">
+  <g data-region-kind="presentation" data-group-id="g" data-members="a">
+    <rect x="20" y="20" width="420" height="160"/>
+  </g>
+  <g data-node-id="a"><rect x="60" y="70" width="100" height="50"/></g>
+  <g data-node-id="b"><rect x="260" y="70" width="100" height="50"/></g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/bad-region.svg" --strict >/dev/null 2>&1; then
+    echo "expected unrelated-node region capture was not detected" >&2
+    exit 1
+  fi
+
+  cat > "$tmp_visual/sparse.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 900">
+  <g data-node-id="a"><rect x="420" y="100" width="100" height="50"/></g>
+  <g data-node-id="b"><rect x="420" y="200" width="100" height="50"/></g>
+  <g data-node-id="c"><rect x="420" y="300" width="100" height="50"/></g>
+  <g data-node-id="d"><rect x="420" y="400" width="100" height="50"/></g>
+</svg>
+SVG
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/sparse.svg" > "$tmp_visual/sparse.out"
+  grep -Eq 'EXCESS_BOTTOM_WHITESPACE|SPARSE_COMPOSITION' "$tmp_visual/sparse.out"
+
   rm -rf "$tmp_visual"
 fi
 
