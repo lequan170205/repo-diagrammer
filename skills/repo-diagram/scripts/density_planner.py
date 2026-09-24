@@ -304,31 +304,84 @@ def _overview_ids(doc, clusters, limit=DEFAULT_OVERVIEW_NODES):
     primary = [str(x) for x in ((doc.get("view") or {}).get("primary_path") or []) if str(x) in all_ids]
     focus = [str(x) for x in ((doc.get("view") or {}).get("focus") or []) if str(x) in all_ids]
 
-    chosen = []
-    def add(nid):
-        if nid in all_ids and nid not in chosen and len(chosen) < limit:
-            chosen.append(nid)
+    cluster_by_node = {}
+    representatives = []
+    for index, cluster in enumerate(clusters):
+        members = [str(x) for x in cluster["members"] if str(x) in all_ids]
+        for nid in members:
+            cluster_by_node[nid] = index
+        if members:
+            representatives.append((
+                index,
+                max(members, key=lambda x: (degree.get(x, 0), x)),
+            ))
 
-    # Preserve the user's explicit story first.
+    chosen = []
+    represented = set()
+
+    def add(nid):
+        if nid not in all_ids or nid in chosen or len(chosen) >= limit:
+            return False
+        chosen.append(nid)
+        cluster_index = cluster_by_node.get(nid)
+        if cluster_index is not None:
+            represented.add(cluster_index)
+        return True
+
+    def uncovered_clusters_after(nid=None):
+        covered = set(represented)
+        idx = cluster_by_node.get(nid) if nid is not None else None
+        if idx is not None:
+            covered.add(idx)
+        return max(0, len(clusters) - len(covered))
+
+    # Story/focus nodes are preferred only while enough capacity remains to keep
+    # one real representative for every still-unrepresented cluster.
+    for sequence in (primary, focus):
+        for nid in sequence:
+            if nid in chosen:
+                continue
+            slots_after = limit - len(chosen) - 1
+            must_reserve = uncovered_clusters_after(nid)
+            if len(clusters) <= limit and slots_after < must_reserve:
+                continue
+            add(nid)
+
+    # Guarantee subsystem visibility whenever the overview budget makes it possible.
+    for cluster_index, representative in representatives:
+        if len(chosen) >= limit:
+            break
+        if cluster_index not in represented:
+            add(representative)
+
+    # Spend remaining budget on the explicit story first, then focus, then hubs.
     for nid in primary:
         add(nid)
     for nid in focus:
         add(nid)
-
-    # One representative per cluster prevents the overview from hiding a whole subsystem.
-    for cluster in clusters:
-        if len(chosen) >= limit:
-            break
-        member = max(
-            cluster["members"],
-            key=lambda x: (degree.get(x, 0), x),
-        )
-        add(member)
-
-    # Fill remaining slots with high-degree real nodes.
     for nid in sorted(all_ids, key=lambda x: (-degree.get(x, 0), x)):
         add(nid)
+
     return chosen
+
+
+def _overview_cluster_coverage(overview_ids, clusters):
+    overview = set(str(x) for x in overview_ids)
+    represented = []
+    missing = []
+    for cluster in clusters:
+        cid = str(cluster.get("id") or "")
+        members = {str(x) for x in (cluster.get("members") or [])}
+        if members & overview:
+            represented.append(cid)
+        else:
+            missing.append(cid)
+    return {
+        "clusters_total": len(clusters),
+        "clusters_represented": len(represented),
+        "represented_cluster_ids": represented,
+        "missing_cluster_ids": missing,
+    }
 
 
 def _filter_regions(regions, included):
@@ -587,10 +640,12 @@ def plan_views(
 ):
     clusters = build_clusters(doc, max_detail_nodes=max_detail_nodes)
     overview_ids = _overview_ids(doc, clusters, limit=overview_nodes)
+    overview_coverage = _overview_cluster_coverage(overview_ids, clusters)
     views = [{
         "id": "overview",
         "label": "Overview",
         "core": overview_ids,
+        "cluster_coverage": overview_coverage,
         "spec": make_view(doc, overview_ids, "Overview", context_limit=0, overview=True),
     }]
     for cluster in clusters:
@@ -691,6 +746,8 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
             manifest_entry["cluster_source"] = view["cluster_source"]
         if view.get("cluster_quality"):
             manifest_entry["cluster_quality"] = copy.deepcopy(view["cluster_quality"])
+        if view.get("cluster_coverage"):
+            manifest_entry["cluster_coverage"] = copy.deepcopy(view["cluster_coverage"])
         manifest_views.append(manifest_entry)
 
     covered_nodes = {
