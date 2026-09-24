@@ -36,6 +36,7 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - distributed edge ports for high-degree nodes instead of one congested center port;
 - primary-path-first routing and emphasis when `view.primary_path` is supplied;
 - adaptive node height with glyph-aware width estimation and wrapped responsibility copy;
+- optional real-browser typography verification using SVG `getBBox()`;
 - adaptive canvas sizing to reduce dead whitespace on small views;
 - stable `data-node-id` and `data-edge-id` metadata for machine inspection.
 
@@ -83,6 +84,22 @@ boundaries.
 The loop stops immediately for defects such as unrelated-node region capture or
 ambiguous region overlap because those require model/grouping correction rather than
 more whitespace.
+
+## Browser-measured typography
+
+The glyph-aware estimator keeps the renderer portable, but a real browser is the
+stronger final typography gate. When Chrome/Chromium/headless-shell is available,
+`browser_typography.py` loads the rendered SVG and measures actual text bounds with
+`getBBox()`.
+
+It checks node copy, edge-label copy, region headers, line collisions, minimum readable
+font sizes, and text escaping the SVG canvas. `render_polished.py` feeds failures back
+into later passes via a conservative text-width scale.
+
+Browser verification is opportunistic by default and must report
+`typography=fallback-estimator` when unavailable. Use
+`--require-browser-typography` in CI or standards-sensitive delivery when typography
+must be mechanically browser-verified.
 
 ## Geometry gate
 
@@ -143,7 +160,8 @@ For a polished high-level architecture diagram, delivery requires all three:
 
 1. evidence spec passes;
 2. geometry analyzer has no Blocking finding;
-3. the final rendered image is inspected at 100% for typography, hierarchy and
+3. browser typography has no Blocking finding when a browser is available/required;
+4. the final rendered image is inspected at 100% for typography, hierarchy and
    subjective balance that geometry checks cannot fully measure.
 
 Machine checks and automatic repair reduce visual mistakes; they do not replace human/agent visual review.

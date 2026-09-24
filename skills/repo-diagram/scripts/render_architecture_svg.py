@@ -52,40 +52,41 @@ def display_parts(n):
     return [str(v).strip() for v in vals if str(v or "").strip()][:3]
 
 
-def width_for(n):
+def width_for(n, text_width_scale=1.0):
     parts = display_parts(n)
     if not parts:
         return 160
-    title_w = estimate_text_width(parts[0], 13, "700") + 28
-    tech_w = estimate_text_width(parts[1], 10.5) + 28 if len(parts) > 1 else 0
+    title_w = estimate_text_width(parts[0], 13, "700") * text_width_scale + 28
+    tech_w = estimate_text_width(parts[1], 10.5) * text_width_scale + 28 if len(parts) > 1 else 0
     # Responsibilities should wrap rather than forcing poster-width nodes.
     responsibility_target = min(
         300,
-        estimate_text_width(parts[2], 10.5) + 28 if len(parts) > 2 else 0,
+        estimate_text_width(parts[2], 10.5) * text_width_scale + 28 if len(parts) > 2 else 0,
     )
     return max(160, min(340, max(title_w, tech_w, responsibility_target, 160)))
 
 
-def node_lines(n, width):
+def node_lines(n, width, text_width_scale=1.0):
     parts = display_parts(n)
     if not parts:
         return []
     inner = max(40, width-28)
-    title_size = fit_font_size(parts[0], inner, 13, 9.5)
+    safe_inner = inner / max(text_width_scale, 1.0)
+    title_size = fit_font_size(parts[0], safe_inner, 13, 9.5)
     result = [("title", parts[0], title_size)]
     if len(parts) > 1:
-        tech_size = fit_font_size(parts[1], inner, 10.5, 8.5)
+        tech_size = fit_font_size(parts[1], safe_inner, 10.5, 8.5)
         result.append(("detail", parts[1], tech_size))
     if len(parts) > 2:
-        wrapped = wrap_text(parts[2], inner, 10.5, max_lines=3) or [parts[2]]
+        wrapped = wrap_text(parts[2], safe_inner, 10.5, max_lines=3) or [parts[2]]
         for line in wrapped:
-            size = fit_font_size(line, inner, 10.5, 8.5)
+            size = fit_font_size(line, safe_inner, 10.5, 8.5)
             result.append(("detail", line, size))
     return result
 
 
-def height_for(n, width):
-    return max(88, 34 + 18*len(node_lines(n, width)))
+def height_for(n, width, text_width_scale=1.0):
+    return max(88, 34 + 18*len(node_lines(n, width, text_width_scale)))
 
 
 def parse_rows(doc, nodes):
@@ -152,8 +153,11 @@ def main():
     ap.add_argument("output", type=Path)
     ap.add_argument("--spacing-scale", type=float, default=1.0,
                     help="presentation-only spacing multiplier used by auto-repair")
+    ap.add_argument("--text-width-scale", type=float, default=1.0,
+                    help="conservative text-width multiplier used by browser repair")
     args = ap.parse_args()
     spacing_scale = max(0.85, min(1.8, args.spacing_scale))
+    text_width_scale = max(1.0, min(1.5, args.text_width_scale))
     doc = yaml.safe_load(args.spec.read_text(encoding="utf-8"))
 
     dtype = str(doc.get("type") or "")
@@ -170,6 +174,8 @@ def main():
 
     rows = barycentric_order(parse_rows(doc, nodes), edges)
     nmap = {n["id"]: n for n in nodes}
+    title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
+    subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
     margin = 70
     row_gap = 105 * spacing_scale
@@ -181,14 +187,22 @@ def main():
     for row in rows:
         dims = []
         for nid in row["nodes"]:
-            w = width_for(nmap[nid])
-            h = height_for(nmap[nid], w)
+            w = width_for(nmap[nid], text_width_scale)
+            h = height_for(nmap[nid], w, text_width_scale)
             node_dims[nid] = (w, h)
             dims.append((w, h))
         row_widths.append(sum(w for w, _ in dims)+node_gap*max(0, len(dims)-1))
         row_heights.append(max([h for _, h in dims] or [88]))
 
-    canvas_w = max(760, max(row_widths, default=0)+margin*2)
+    header_w = max(
+        estimate_text_width(title, 26, "700") * text_width_scale,
+        estimate_text_width(subtitle, 13) * text_width_scale if subtitle else 0,
+        max(
+            [estimate_text_width(str(row.get("label") or ""), 11, "600") * text_width_scale
+             for row in rows] or [0]
+        ),
+    ) + margin*2
+    canvas_w = max(760, max(row_widths, default=0)+margin*2, header_w)
     y = header
     boxes = {}
     row_index = {}
@@ -206,8 +220,6 @@ def main():
 
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
     canvas_h = max(420, y-row_gap+margin+legend_h)
-    title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
-    subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w:.0f}" height="{canvas_h:.0f}" '
@@ -247,12 +259,13 @@ def main():
         name = str(boundary.get("name") or bid)
         members = ",".join(str(x) for x in (boundary.get("contains") or []))
         label_obstacles[f"boundary:{bid}:header"] = (bx, by, bw, min(24.0, bh))
+        region_font = fit_font_size(name, max(40, (bw-24)/text_width_scale), 10.5, 8.5)
         out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}" data-region-kind="boundary" '
                    f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
                    'stroke-width="1.4" stroke-dasharray="8 6"/>'
                    f'<text x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
-                   f'font-size="10.5" font-weight="700" fill="#475569">{esc(name)}</text></g>')
+                   f'font-size="{region_font:.1f}" font-weight="700" fill="#475569">{esc(name)}</text></g>')
 
     groups = ((doc.get("presentation") or {}).get("groups") or [])
     for group in groups:
@@ -266,12 +279,13 @@ def main():
         name = str(group.get("label") or group.get("name") or gid)
         members = ",".join(str(x) for x in (group.get("contains") or []))
         label_obstacles[f"group:{gid}:header"] = (gx, gy, gw, min(24.0, gh))
+        group_font = fit_font_size(name, max(40, (gw-24)/text_width_scale), 10, 8.5)
         out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}" data-region-kind="presentation" '
                    f'data-members="{esc(members)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
                    f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
                    'stroke="#CBD5E1" stroke-width="1"/>'
                    f'<text x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
-                   f'font-size="10" font-weight="600" fill="#64748B">{esc(name)}</text></g>')
+                   f'font-size="{group_font:.1f}" font-weight="600" fill="#64748B">{esc(name)}</text></g>')
 
     for row in rows:
         if not row.get("label") or not row["nodes"]:
@@ -357,7 +371,7 @@ def main():
         label = str(e.get("label") or e.get("protocol") or "").strip()
         if not label:
             continue
-        lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
+        lw = max(34, min(300, 14+estimate_text_width(label, 10.5)*text_width_scale))
         lh = 20
         lx, ly, _, _ = place_label(
             pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
@@ -373,7 +387,7 @@ def main():
         node = nmap[nid]
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
-        lines = node_lines(node, w)
+        lines = node_lines(node, w, text_width_scale)
         out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')

@@ -123,6 +123,7 @@ layout:
   crossing_target: 0
   edge_node_crossings_target: 0
   geometry_gate: required
+  browser_typography: auto
   aspect_target: ""
   auto_split:
     enabled: true

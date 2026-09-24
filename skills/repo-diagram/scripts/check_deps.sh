@@ -8,6 +8,24 @@ row npx "npx runner (package may need network/cache)" "install Node.js 18+"
 row plantuml "PlantUML" "brew install plantuml / apt install plantuml"
 row dot "Graphviz dot" "brew install graphviz / apt install graphviz"
 echo
+echo "=== BROWSER TYPOGRAPHY ==="
+if have google-chrome; then
+  echo "  [x] google-chrome        browser getBBox() typography QA"
+elif have google-chrome-stable; then
+  echo "  [x] google-chrome-stable browser getBBox() typography QA"
+elif have chromium; then
+  echo "  [x] chromium             browser getBBox() typography QA"
+elif have chromium-browser; then
+  echo "  [x] chromium-browser     browser getBBox() typography QA"
+elif have chrome-headless-shell; then
+  echo "  [x] chrome-headless-shell browser getBBox() typography QA"
+elif [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+  echo "  [x] Google Chrome.app    browser getBBox() typography QA"
+else
+  echo "  [ ] Chrome/Chromium      optional browser typography QA"
+  echo "      -> install Chrome/Chromium or: npx puppeteer browsers install chrome-headless-shell"
+fi
+echo
 echo "=== CAPABILITIES ==="
 if have mmdc; then echo "  Mermaid: $(mmdc --version 2>/dev/null | head -1 || echo unknown)"
 else echo "  Mermaid local version: unavailable/unknown"; fi
