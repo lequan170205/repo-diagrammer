@@ -175,6 +175,49 @@ def main():
         out.append(f'<text x="{margin}" y="72" font-family="Inter,Arial,sans-serif" font-size="13" '
                    f'fill="#64748B">{esc(subtitle)}</text>')
 
+    # Regions are visual containers only. Real boundaries come from evidence-backed
+    # boundaries; presentation groups remain softer and never become edge endpoints.
+    def region_rect(member_ids, pad=18):
+        rs = [boxes[x] for x in member_ids if x in boxes]
+        if not rs:
+            return None
+        left = min(x for x, y0, w, h in rs)-pad
+        top = min(y0 for x, y0, w, h in rs)-pad-14
+        right = max(x+w for x, y0, w, h in rs)+pad
+        bottom = max(y0+h for x, y0, w, h in rs)+pad
+        return left, top, right-left, bottom-top
+
+    for boundary in doc.get("boundaries") or []:
+        if not isinstance(boundary, dict):
+            continue
+        rr = region_rect(boundary.get("contains") or [], 24)
+        if not rr:
+            continue
+        bx, by, bw, bh = rr
+        bid = str(boundary.get("id") or "")
+        name = str(boundary.get("name") or bid)
+        out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}"><rect x="{bx:.1f}" y="{by:.1f}" '
+                   f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
+                   'stroke-width="1.4" stroke-dasharray="8 6"/>'
+                   f'<text x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'font-size="10.5" font-weight="700" fill="#475569">{esc(name)}</text></g>')
+
+    groups = ((doc.get("presentation") or {}).get("groups") or [])
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        rr = region_rect(group.get("contains") or [], 16)
+        if not rr:
+            continue
+        gx, gy, gw, gh = rr
+        gid = str(group.get("id") or "")
+        name = str(group.get("label") or group.get("name") or gid)
+        out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
+                   f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
+                   'stroke="#CBD5E1" stroke-width="1"/>'
+                   f'<text x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'font-size="10" font-weight="600" fill="#64748B">{esc(name)}</text></g>')
+
     for row in rows:
         if not row.get("label") or not row["nodes"]:
             continue
