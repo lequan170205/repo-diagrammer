@@ -292,6 +292,18 @@ for i in range(23):
         "sync": True,
         "evidence": [f"test-edge:{i}"],
     })
+# Cross-cluster matching edges intentionally exceed the per-detail context budget.
+# Older split logic could silently omit some of these from the entire generated set.
+for i in range(6):
+    edges.append({
+        "id": f"x{i:02d}",
+        "from": f"n{i:02d}",
+        "to": f"n{18+i:02d}",
+        "relation": "calls",
+        "label": "cross-cluster",
+        "sync": True,
+        "evidence": [f"test-cross:{i}"],
+    })
 doc = {
     "question": "dense architecture split",
     "type": "c4-container",
@@ -307,7 +319,7 @@ doc = {
             "max_nodes": 20,
             "detail_nodes": 8,
             "overview_nodes": 10,
-            "context_nodes": 2,
+            "context_nodes": 1,
         },
     },
 }
@@ -338,6 +350,19 @@ assert len(views) >= 3, views
 assert views[0]["id"] == "overview"
 assert manifest["stable_ids"] is True
 assert manifest["invented_architecture_elements"] is False
+coverage = manifest.get("coverage") or {}
+assert coverage["nodes_covered"] == coverage["nodes_total"], coverage
+assert coverage["edges_covered"] == coverage["edges_total"], coverage
+assert coverage["missing_nodes"] == [], coverage
+assert coverage["missing_edges"] == [], coverage
+assert any(str(v["id"]).startswith("integration-") for v in views), views
+integration_edges = {
+    eid
+    for view in views
+    if str(view["id"]).startswith("integration-")
+    for eid in (view.get("coverage_edges") or [])
+}
+assert integration_edges, views
 for view in views:
     assert view["node_count"] <= 12, view
 PY
