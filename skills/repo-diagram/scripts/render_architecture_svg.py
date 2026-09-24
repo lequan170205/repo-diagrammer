@@ -218,6 +218,9 @@ def main():
         out.append(f'<text x="{margin}" y="72" font-family="Inter,Arial,sans-serif" font-size="13" '
                    f'fill="#64748B">{esc(subtitle)}</text>')
 
+    # Edge labels must avoid not only nodes but also region header strips.
+    label_obstacles = dict(boxes)
+
     # Regions are visual containers only. Real boundaries come from evidence-backed
     # boundaries; presentation groups remain softer and never become edge endpoints.
     def region_rect(member_ids, pad=18):
@@ -240,6 +243,7 @@ def main():
         bid = str(boundary.get("id") or "")
         name = str(boundary.get("name") or bid)
         members = ",".join(str(x) for x in (boundary.get("contains") or []))
+        label_obstacles[f"boundary:{bid}:header"] = (bx, by, bw, min(24.0, bh))
         out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}" data-region-kind="boundary" '
                    f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
@@ -258,6 +262,7 @@ def main():
         gid = str(group.get("id") or "")
         name = str(group.get("label") or group.get("name") or gid)
         members = ",".join(str(x) for x in (group.get("contains") or []))
+        label_obstacles[f"group:{gid}:header"] = (gx, gy, gw, min(24.0, gh))
         out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}" data-region-kind="presentation" '
                    f'data-members="{esc(members)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
                    f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
@@ -335,7 +340,7 @@ def main():
             lw = max(34, min(240, 14+estimate_text_width(label, 10.5)))
             lh = 20
             lx, ly, _, _ = place_label(
-                pts, lw, lh, boxes, placed_labels, existing_routes, eid, canvas_w, canvas_h
+                pts, lw, lh, label_obstacles, placed_labels, existing_routes, eid, canvas_w, canvas_h
             )
             placed_labels.append((lx, ly, lw, lh))
             out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
