@@ -13,6 +13,8 @@ import math
 import sys
 from pathlib import Path
 
+from geometry_router import place_label, route_edge
+
 try:
     import yaml
 except ImportError:
@@ -225,87 +227,41 @@ def main():
         out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
-    same_row_count = {}
-    cross_count = {}
+    route_lane_count = {}
+    existing_routes = []
+    placed_labels = []
     for ei, e in enumerate(edges):
         sid, tid = e["from"], e["to"]
         if sid not in boxes or tid not in boxes:
             continue
-        sx, sy, sw, sh = boxes[sid]
-        tx, ty, tw, th = boxes[tid]
         sri, tri = row_index[sid], row_index[tid]
+        key = (min(sri, tri), max(sri, tri))
+        lane_index = route_lane_count.get(key, 0)
+        route_lane_count[key] = lane_index + 1
+        pts = route_edge(boxes, row_index, sid, tid, canvas_w, existing_routes, lane_index)
+        if len(pts) < 2:
+            continue
+
         dashed = (e.get("sync") is False) or e.get("relation") in {
             "publishes", "emits", "consumes", "async", "event"
         }
         dash = ' stroke-dasharray="7 6"' if dashed else ""
-
-        if sri == tri:
-            k = same_row_count.get(sri, 0)
-            same_row_count[sri] = k+1
-            x1, y1, x2, y2 = sx+sw, sy+sh/2, tx, ty+th/2
-            if x2 < x1:
-                x1, x2 = sx, tx+tw
-            lift = 32+18*k
-            midy = min(sy, ty)-lift
-            pts = [(x1, y1), (x1+12, midy), (x2-12, midy), (x2, y2)]
-        else:
-            downward = tri > sri
-            x1 = sx+sw/2
-            y1 = sy+sh if downward else sy
-            x2 = tx+tw/2
-            y2 = ty if downward else ty+th
-            key = (min(sri, tri), max(sri, tri))
-            k = cross_count.get(key, 0)
-            cross_count[key] = k+1
-            mid = (y1+y2)/2 + ((k % 5)-2)*9
-            pts = [(x1, y1), (x1, mid), (x2, mid), (x2, y2)]
-
-            # If the route spans layers and would pass through an intermediate node,
-            # move it to a perimeter channel. A longer unambiguous route is better
-            # than an edge visually passing through a box.
-            lo, hi = sorted((sri, tri))
-            intermediate = [bid for bid, bri in row_index.items() if lo < bri < hi]
-
-            def seg_hits_box(a, b, box):
-                bx, by, bw, bh = box
-                if abs(a[0]-b[0]) < 0.01:
-                    xx = a[0]
-                    ya, yb = sorted((a[1], b[1]))
-                    return bx < xx < bx+bw and max(ya, by) < min(yb, by+bh)
-                if abs(a[1]-b[1]) < 0.01:
-                    yy = a[1]
-                    xa, xb = sorted((a[0], b[0]))
-                    return by < yy < by+bh and max(xa, bx) < min(xb, bx+bw)
-                return False
-
-            blocked = any(seg_hits_box(a, b, boxes[bid])
-                          for bid in intermediate
-                          for a, b in zip(pts, pts[1:]))
-            if blocked:
-                channel = 32 if (x1+x2)/2 > canvas_w/2 else canvas_w-32
-                stub1 = y1+(18 if downward else -18)
-                stub2 = y2+(-18 if downward else 18)
-                pts = [(x1, y1), (x1, stub1), (channel, stub1),
-                       (channel, stub2), (x2, stub2), (x2, y2)]
-
         d = "M " + " L ".join(f"{x:.1f},{yy:.1f}" for x, yy in pts)
         eid = str(e.get("id") or f"edge-{ei}")
         out.append(f'<g class="edge" data-edge-id="{esc(eid)}" data-source-id="{esc(sid)}" '
                    f'data-target-id="{esc(tid)}"><path d="{d}" fill="none" stroke="#475569" '
                    f'stroke-width="1.7"{dash} marker-end="url(#arrow)"/></g>')
+
+        existing_routes.append({"id": eid, "source": sid, "target": tid, "points": pts})
+
         label = str(e.get("label") or e.get("protocol") or "").strip()
         if label:
-            # Place labels on the longest route segment and give them a measurable
-            # background box so collision analysis is deterministic.
-            segs = list(zip(pts, pts[1:]))
-            a, b = max(segs, key=lambda ab: math.dist(ab[0], ab[1]))
-            mx, my = (a[0]+b[0])/2, (a[1]+b[1])/2
             lw = max(34, min(210, 14+len(label)*5.8))
             lh = 20
-            if abs(a[0]-b[0]) < abs(a[1]-b[1]):
-                lx, ly = mx+7, my-lh/2
-            else:
-                lx, ly = mx-lw/2, my-lh-5
+            lx, ly, _, _ = place_label(
+                pts, lw, lh, boxes, placed_labels, canvas_w, canvas_h
+            )
+            placed_labels.append((lx, ly, lw, lh))
             out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
                        f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh}" rx="5" '
                        'fill="#FFFFFF" fill-opacity="0.94"/>'
