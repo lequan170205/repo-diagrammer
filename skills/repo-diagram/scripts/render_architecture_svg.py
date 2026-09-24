@@ -90,18 +90,19 @@ def height_for(n, width, text_width_scale=1.0):
     return max(88, 34 + 18*len(node_lines(n, width, text_width_scale)))
 
 
-def parse_rows(doc, nodes):
-    ids = {n["id"] for n in nodes}
+def parse_rows(doc, nodes, exclude_ids=None):
+    exclude_ids = {str(x) for x in (exclude_ids or [])}
+    ids = {str(n["id"]) for n in nodes if str(n["id"]) not in exclude_ids}
     rows = (doc.get("layout") or {}).get("rows") or []
     out = []
     used = set()
     for row in rows:
         if isinstance(row, dict):
-            members = [x for x in (row.get("nodes") or row.get("contains") or [])
-                       if x in ids and x not in used]
+            members = [str(x) for x in (row.get("nodes") or row.get("contains") or [])
+                       if str(x) in ids and str(x) not in used]
             label = str(row.get("label") or row.get("id") or "")
         elif isinstance(row, list):
-            members = [x for x in row if x in ids and x not in used]
+            members = [str(x) for x in row if str(x) in ids and str(x) not in used]
             label = ""
         else:
             continue
@@ -109,10 +110,10 @@ def parse_rows(doc, nodes):
             out.append({"label": label, "nodes": members})
             used.update(members)
 
-    leftovers = [n for n in nodes if n["id"] not in used]
+    leftovers = [n for n in nodes if str(n["id"]) in ids and str(n["id"]) not in used]
     by = {}
     for n in leftovers:
-        by.setdefault(node_role(n), []).append(n["id"])
+        by.setdefault(node_role(n), []).append(str(n["id"]))
     for role in ROLE_ORDER:
         if by.get(role):
             out.append({"label": role.replace("-", " ").title(), "nodes": by.pop(role)})
@@ -152,6 +153,64 @@ def main():
 
     layout = doc.get("layout") or {}
     view = doc.get("view") or {}
+
+    direction_raw = str(layout.get("direction") or "").strip().upper()
+    direction_key = direction_raw.replace("_", "-").replace(" ", "-")
+    vertical_aliases = {"", "TB", "TD", "TOP-BOTTOM", "TOP-TO-BOTTOM", "VERTICAL"}
+    if direction_key not in vertical_aliases:
+        print(
+            "ARCH-RENDERER: native polished architecture supports top-to-bottom "
+            f"direction only; got {direction_raw!r}. Use Mermaid/PlantUML fallback "
+            "for LR/RL or leave layout.direction blank.",
+            file=sys.stderr,
+        )
+        return 2
+
+    nmap = {str(n["id"]): n for n in nodes}
+    all_ids = set(nmap)
+    sidecar_cfg = layout.get("sidecars") or {}
+    if not isinstance(sidecar_cfg, dict):
+        print("ARCH-RENDERER: layout.sidecars must be an object", file=sys.stderr)
+        return 2
+
+    sidecars = {}
+    assigned_sidecars = {}
+    for lane in ("left", "right", "bottom"):
+        raw = sidecar_cfg.get(lane) or []
+        if not isinstance(raw, list):
+            print(f"ARCH-RENDERER: layout.sidecars.{lane} must be a list", file=sys.stderr)
+            return 2
+        lane_ids = [str(x) for x in raw]
+        for nid in lane_ids:
+            if nid not in all_ids:
+                print(
+                    f"ARCH-RENDERER: layout.sidecars.{lane} references unknown node {nid!r}",
+                    file=sys.stderr,
+                )
+                return 2
+            if nid in assigned_sidecars:
+                print(
+                    f"ARCH-RENDERER: node {nid!r} is assigned to multiple sidecar lanes "
+                    f"({assigned_sidecars[nid]} and {lane})",
+                    file=sys.stderr,
+                )
+                return 2
+            assigned_sidecars[nid] = lane
+        sidecars[lane] = lane_ids
+
+    declaration_order = [str(x) for x in (layout.get("declaration_order") or [])]
+    declaration_rank = {nid: i for i, nid in enumerate(declaration_order)}
+    source_rank = {str(n["id"]): i for i, n in enumerate(nodes)}
+    for lane in sidecars:
+        sidecars[lane].sort(
+            key=lambda nid: (
+                declaration_rank.get(nid, 10**6 + source_rank.get(nid, 0)),
+                source_rank.get(nid, 0),
+                nid,
+            )
+        )
+
+    sidecar_ids = set(assigned_sidecars)
     primary_path = [str(x) for x in (view.get("primary_path") or [])]
     raw_primary_paths = view.get("primary_paths") or []
     primary_paths = [
@@ -162,32 +221,46 @@ def main():
     if not primary_paths and primary_path:
         primary_paths = [primary_path]
     rows, layout_metrics = optimize_rows(
-        parse_rows(doc, nodes),
+        parse_rows(doc, nodes, exclude_ids=sidecar_ids),
         edges,
-        declaration_order=layout.get("declaration_order") or [],
+        declaration_order=declaration_order,
         primary_path=primary_path,
         variant=args.layout_variant,
     )
-    nmap = {n["id"]: n for n in nodes}
     title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
     subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
     margin = 70
     row_gap = 105 * spacing_scale
     node_gap = 34 * spacing_scale
+    sidecar_gap = 54 * spacing_scale
     header = 112
+
     node_dims = {}
+    for nid, node in nmap.items():
+        w = width_for(node, text_width_scale)
+        h = height_for(node, w, text_width_scale)
+        node_dims[nid] = (w, h)
+
     row_widths = []
     row_heights = []
     for row in rows:
-        dims = []
-        for nid in row["nodes"]:
-            w = width_for(nmap[nid], text_width_scale)
-            h = height_for(nmap[nid], w, text_width_scale)
-            node_dims[nid] = (w, h)
-            dims.append((w, h))
+        dims = [node_dims[nid] for nid in row["nodes"]]
         row_widths.append(sum(w for w, _ in dims)+node_gap*max(0, len(dims)-1))
         row_heights.append(max([h for _, h in dims] or [88]))
+
+    main_width = max(row_widths, default=0)
+    left_width = max([node_dims[nid][0] for nid in sidecars["left"]] or [0])
+    right_width = max([node_dims[nid][0] for nid in sidecars["right"]] or [0])
+    bottom_width = (
+        sum(node_dims[nid][0] for nid in sidecars["bottom"])
+        + node_gap*max(0, len(sidecars["bottom"])-1)
+    )
+    main_body_width = (
+        main_width
+        + (left_width + sidecar_gap if left_width else 0)
+        + (right_width + sidecar_gap if right_width else 0)
+    )
 
     header_w = max(
         estimate_text_width(title, 26, "700") * text_width_scale,
@@ -197,14 +270,22 @@ def main():
              for row in rows] or [0]
         ),
     ) + margin*2
-    canvas_w = max(760, max(row_widths, default=0)+margin*2, header_w)
-    y = header
+    canvas_w = max(760, main_body_width+margin*2, bottom_width+margin*2, header_w)
+
     boxes = {}
     row_index = {}
+    sidecar_position = {}
+
+    main_body_left = (canvas_w-main_body_width)/2 if main_body_width else canvas_w/2
+    main_left = main_body_left + (left_width+sidecar_gap if left_width else 0)
+
+    y = header
+    row_centers = []
     for ri, row in enumerate(rows):
         total = row_widths[ri]
         row_h = row_heights[ri]
-        x = (canvas_w-total)/2
+        x = main_left + (main_width-total)/2
+        row_centers.append(y + row_h/2)
         for nid in row["nodes"]:
             w, h = node_dims[nid]
             ny = y + (row_h-h)/2
@@ -213,14 +294,67 @@ def main():
             x += w+node_gap
         y += row_h+row_gap
 
+    main_bottom = y-row_gap if rows else header
+    main_height = max(0, main_bottom-header)
+
+    def nearest_row_index(center_y):
+        if not row_centers:
+            return 0
+        return min(range(len(row_centers)), key=lambda i: abs(row_centers[i]-center_y))
+
+    def place_vertical_sidecar(lane, lane_x, lane_width, align):
+        ids = sidecars[lane]
+        if not ids:
+            return header
+        total_h = sum(node_dims[nid][1] for nid in ids) + node_gap*max(0, len(ids)-1)
+        sy = header + max(0, (main_height-total_h)/2)
+        for nid in ids:
+            w, h = node_dims[nid]
+            if align == "right":
+                x = lane_x + lane_width-w
+            else:
+                x = lane_x
+            boxes[nid] = (x, sy, w, h)
+            row_index[nid] = nearest_row_index(sy+h/2)
+            sidecar_position[nid] = lane
+            sy += h+node_gap
+        return sy-node_gap
+
+    left_x = main_body_left
+    right_x = main_left + main_width + (sidecar_gap if right_width else 0)
+    left_bottom = (
+        place_vertical_sidecar("left", left_x, left_width, "right")
+        if left_width else header
+    )
+    right_bottom = (
+        place_vertical_sidecar("right", right_x, right_width, "left")
+        if right_width else header
+    )
+
+    body_bottom = max(main_bottom, left_bottom, right_bottom)
+    bottom_bottom = body_bottom
+    if sidecars["bottom"]:
+        bottom_y = body_bottom + row_gap
+        bx = (canvas_w-bottom_width)/2
+        bottom_h = max(node_dims[nid][1] for nid in sidecars["bottom"])
+        for nid in sidecars["bottom"]:
+            w, h = node_dims[nid]
+            ny = bottom_y + (bottom_h-h)/2
+            boxes[nid] = (bx, ny, w, h)
+            row_index[nid] = len(rows)
+            sidecar_position[nid] = "bottom"
+            bx += w+node_gap
+        bottom_bottom = bottom_y + bottom_h
+
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
-    canvas_h = max(420, y-row_gap+margin+legend_h)
+    canvas_h = max(420, max(body_bottom, bottom_bottom)+margin+legend_h)
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w:.0f}" height="{canvas_h:.0f}" '
                f'viewBox="0 0 {canvas_w:.0f} {canvas_h:.0f}" role="img" '
                f'data-layout-variant="{args.layout_variant % 4}" '
                f'data-routing-variant="{args.routing_variant % 4}" '
+               f'data-direction="TB" '
                f'data-estimated-crossings="{layout_metrics.get("estimated_crossings", 0)}">')
     out.append('<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
                '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>')
@@ -409,7 +543,11 @@ def main():
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
         lines = node_lines(node, w, text_width_scale)
-        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"><rect x="{x:.1f}" y="{yy:.1f}" '
+        sidecar_attr = (
+            f' data-sidecar="{esc(sidecar_position[nid])}"'
+            if nid in sidecar_position else ""
+        )
+        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"{sidecar_attr}><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
