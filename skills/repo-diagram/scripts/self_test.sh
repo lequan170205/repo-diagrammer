@@ -462,8 +462,8 @@ PY
   grep -q "immutable source field 'conformance' changed" "$tmp_visual/tampered-meta.out"
   mv "$tampered_spec.bak" "$tampered_spec"
 
-  cp "$tmp_visual/dense.set/diagram-set.yaml" "$tmp_visual/bad-budget.yaml"
-  python3 - "$tmp_visual/bad-budget.yaml" <<'PY'
+  cp "$tmp_visual/dense.set/diagram-set.yaml" "$tmp_visual/dense.set/bad-budget.yaml"
+  python3 - "$tmp_visual/dense.set/bad-budget.yaml" <<'PY'
 import sys, yaml
 path = sys.argv[1]
 doc = yaml.safe_load(open(path, encoding="utf-8"))
@@ -471,14 +471,14 @@ doc["budgets"]["overview_nodes"] = 1
 with open(path, "w", encoding="utf-8") as fh:
     yaml.safe_dump(doc, fh, sort_keys=False)
 PY
-  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/bad-budget.yaml" >"$tmp_visual/bad-budget.out" 2>&1; then
+  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.set/bad-budget.yaml" >"$tmp_visual/bad-budget.out" 2>&1; then
     echo "expected impossible split budget to invalidate split set" >&2
     exit 1
   fi
   grep -q 'exceeds overview budget' "$tmp_visual/bad-budget.out"
 
-  cp "$tmp_visual/dense.set/diagram-set.yaml" "$tmp_visual/bad-core.yaml"
-  python3 - "$tmp_visual/bad-core.yaml" <<'PY'
+  cp "$tmp_visual/dense.set/diagram-set.yaml" "$tmp_visual/dense.set/bad-core.yaml"
+  python3 - "$tmp_visual/dense.set/bad-core.yaml" <<'PY'
 import sys, yaml
 path = sys.argv[1]
 doc = yaml.safe_load(open(path, encoding="utf-8"))
@@ -486,7 +486,7 @@ doc["views"][0]["core_nodes"] = []
 with open(path, "w", encoding="utf-8") as fh:
     yaml.safe_dump(doc, fh, sort_keys=False)
 PY
-  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/bad-core.yaml" >"$tmp_visual/bad-core.out" 2>&1; then
+  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.set/bad-core.yaml" >"$tmp_visual/bad-core.out" 2>&1; then
     echo "expected core_nodes/focus mismatch to invalidate split set" >&2
     exit 1
   fi
