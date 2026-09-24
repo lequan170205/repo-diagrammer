@@ -713,6 +713,8 @@ edges:
   - {id: p12, from: p1, to: p2, relation: calls, evidence: ["test:p12"]}
   - {id: p23, from: p2, to: p3, relation: calls, evidence: ["test:p23"]}
   - {id: p34, from: p3, to: p4, relation: calls, evidence: ["test:p34"]}
+  - {id: d12, from: d1, to: d2, relation: reads, evidence: ["test:d12"]}
+  - {id: e12, from: e1, to: e2, relation: calls, evidence: ["test:e12"]}
   - {id: pd, from: p4, to: d1, relation: writes, evidence: ["test:pd"]}
   - {id: de, from: d2, to: e1, relation: calls, evidence: ["test:de"]}
 boundaries:
@@ -742,6 +744,10 @@ overview_nodes = set(overview["core_nodes"])
 assert len(overview_nodes) <= 4, overview
 assert len(details) == 3, details
 assert all(overview_nodes & set(v["core_nodes"]) for v in details), (overview, details)
+assert {v["cluster_seed_key"] for v in details} == {
+    "boundary:primary", "boundary:data", "boundary:external"
+}, details
+assert all(v["cluster_source"] == "boundary" for v in details), details
 coverage = overview["cluster_coverage"]
 assert coverage["clusters_total"] == 3, coverage
 assert coverage["clusters_represented"] == 3, coverage
