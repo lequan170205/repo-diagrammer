@@ -27,7 +27,10 @@ coordinates and edge routes and can be inspected mechanically.
 `render_architecture_svg.py` is intentionally narrow: static C4/high-level architecture
 only. It uses the evidence spec directly, performs layered placement, barycentric node
 ordering and orthogonal obstacle-aware routing, then emits stable SVG metadata for the
-geometry analyzer. Do not use it for sequence/class/ER/state notation.
+geometry analyzer. It owns TB/TD composition and real-node left/right/bottom sidecar
+lanes. If a polished architecture explicitly requires LR/RL, choose Mermaid/PlantUML
+(or another semantics-preserving fallback) rather than silently ignoring direction.
+Do not use the native renderer for sequence/class/ER/state notation.
 
 ## Mermaid capability gate
 
