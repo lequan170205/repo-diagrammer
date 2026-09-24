@@ -104,6 +104,19 @@ def main():
                 + f" — generating {len(result['views'])} bounded views"
             )
             manifest_path = split_dir / "diagram-set.yaml"
+            validator = script_dir / "validate_split_set.py"
+            validated = run([
+                sys.executable,
+                str(validator),
+                str(args.spec),
+                str(manifest_path),
+            ])
+            if validated.returncode != 0:
+                print(validated.stdout, end="")
+                print(validated.stderr, end="", file=sys.stderr)
+                return validated.returncode
+            print(validated.stdout, end="")
+
             manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
             manifest_by_id = {str(v.get("id")): v for v in (manifest.get("views") or [])}
 
