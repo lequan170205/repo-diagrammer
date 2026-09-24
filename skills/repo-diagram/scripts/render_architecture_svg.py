@@ -259,7 +259,7 @@ def main():
             lw = max(34, min(210, 14+len(label)*5.8))
             lh = 20
             lx, ly, _, _ = place_label(
-                pts, lw, lh, boxes, placed_labels, canvas_w, canvas_h
+                pts, lw, lh, boxes, placed_labels, existing_routes, eid, canvas_w, canvas_h
             )
             placed_labels.append((lx, ly, lw, lh))
             out.append(f'<g class="edge-label" data-edge-label-id="{esc(eid)}-label">'
