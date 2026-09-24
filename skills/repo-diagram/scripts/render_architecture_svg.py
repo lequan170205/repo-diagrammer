@@ -11,6 +11,7 @@ import argparse
 import html
 import math
 import sys
+import textwrap
 from pathlib import Path
 
 from geometry_router import place_label, route_edge
@@ -45,15 +46,35 @@ def node_role(n):
     return str(n.get("semantic_role") or n.get("kind") or "domain")
 
 
-def display_lines(n):
+def display_parts(n):
     vals = [n.get("display_label") or n.get("label") or n.get("id"),
             n.get("tech"), n.get("responsibility")]
     return [str(v).strip() for v in vals if str(v or "").strip()][:3]
 
 
 def width_for(n):
-    longest = max([len(x) for x in display_lines(n)] or [10])
-    return max(160, min(260, 110+longest*5.2))
+    longest = max([len(x) for x in display_parts(n)] or [10])
+    return max(160, min(320, 110+longest*5.2))
+
+
+def node_lines(n, width):
+    parts = display_parts(n)
+    if not parts:
+        return []
+    result = [("title", parts[0])]
+    char_budget = max(22, int((width-28)/5.6))
+    if len(parts) > 1:
+        result.append(("detail", parts[1]))
+    if len(parts) > 2:
+        wrapped = textwrap.wrap(parts[2], width=char_budget, break_long_words=False,
+                                break_on_hyphens=False) or [parts[2]]
+        for line in wrapped[:3]:
+            result.append(("detail", line))
+    return result
+
+
+def height_for(n, width):
+    return max(88, 34 + 18*len(node_lines(n, width)))
 
 
 def parse_rows(doc, nodes):
@@ -140,11 +161,18 @@ def main():
     row_gap = 105
     node_gap = 34
     header = 112
-    node_h = 88
+    node_dims = {}
     row_widths = []
+    row_heights = []
     for row in rows:
-        ws = [width_for(nmap[x]) for x in row["nodes"]]
-        row_widths.append(sum(ws)+node_gap*max(0, len(ws)-1))
+        dims = []
+        for nid in row["nodes"]:
+            w = width_for(nmap[nid])
+            h = height_for(nmap[nid], w)
+            node_dims[nid] = (w, h)
+            dims.append((w, h))
+        row_widths.append(sum(w for w, _ in dims)+node_gap*max(0, len(dims)-1))
+        row_heights.append(max([h for _, h in dims] or [88]))
 
     canvas_w = max(980, max(row_widths, default=0)+margin*2)
     y = header
@@ -152,13 +180,15 @@ def main():
     row_index = {}
     for ri, row in enumerate(rows):
         total = row_widths[ri]
+        row_h = row_heights[ri]
         x = (canvas_w-total)/2
         for nid in row["nodes"]:
-            w = width_for(nmap[nid])
-            boxes[nid] = (x, y, w, node_h)
+            w, h = node_dims[nid]
+            ny = y + (row_h-h)/2
+            boxes[nid] = (x, ny, w, h)
             row_index[nid] = ri
             x += w+node_gap
-        y += node_h+row_gap
+        y += row_h+row_gap
 
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
     canvas_h = max(620, y-row_gap+margin+legend_h)
@@ -227,10 +257,34 @@ def main():
         out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
+    primary_path = [str(x) for x in ((doc.get("view") or {}).get("primary_path") or [])]
+    primary_pairs = set(zip(primary_path, primary_path[1:]))
+    primary_ids = set(primary_path)
+
+    def is_primary(edge):
+        eid = str(edge.get("id") or "")
+        pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
+        return eid in primary_ids or pair in primary_pairs
+
+    ordered_edges = sorted(enumerate(edges), key=lambda item: (not is_primary(item[1]), item[0]))
+    incident = {nid: [] for nid in boxes}
+    for original_index, edge in ordered_edges:
+        eid = str(edge.get("id") or f"edge-{original_index}")
+        for nid in (edge.get("from"), edge.get("to")):
+            if nid in incident:
+                incident[nid].append(eid)
+
+    def port_slot(nid, eid):
+        ids = incident.get(nid) or []
+        if len(ids) <= 1:
+            return 0.0
+        idx = ids.index(eid)
+        return (idx/(len(ids)-1))*2.0 - 1.0
+
     route_lane_count = {}
     existing_routes = []
     placed_labels = []
-    for ei, e in enumerate(edges):
+    for ei, e in ordered_edges:
         sid, tid = e["from"], e["to"]
         if sid not in boxes or tid not in boxes:
             continue
@@ -238,7 +292,11 @@ def main():
         key = (min(sri, tri), max(sri, tri))
         lane_index = route_lane_count.get(key, 0)
         route_lane_count[key] = lane_index + 1
-        pts = route_edge(boxes, row_index, sid, tid, canvas_w, existing_routes, lane_index)
+        eid = str(e.get("id") or f"edge-{ei}")
+        pts = route_edge(
+            boxes, row_index, sid, tid, canvas_w, existing_routes, lane_index,
+            port_slot(sid, eid), port_slot(tid, eid)
+        )
         if len(pts) < 2:
             continue
 
@@ -247,10 +305,13 @@ def main():
         }
         dash = ' stroke-dasharray="7 6"' if dashed else ""
         d = "M " + " L ".join(f"{x:.1f},{yy:.1f}" for x, yy in pts)
-        eid = str(e.get("id") or f"edge-{ei}")
+        primary = is_primary(e)
+        stroke = "#1E293B" if primary else "#475569"
+        stroke_width = "2.8" if primary else "1.7"
+        primary_attr = ' data-primary="true"' if primary else ""
         out.append(f'<g class="edge" data-edge-id="{esc(eid)}" data-source-id="{esc(sid)}" '
-                   f'data-target-id="{esc(tid)}"><path d="{d}" fill="none" stroke="#475569" '
-                   f'stroke-width="1.7"{dash} marker-end="url(#arrow)"/></g>')
+                   f'data-target-id="{esc(tid)}"{primary_attr}><path d="{d}" fill="none" stroke="{stroke}" '
+                   f'stroke-width="{stroke_width}"{dash} marker-end="url(#arrow)"/></g>')
 
         existing_routes.append({"id": eid, "source": sid, "target": tid, "points": pts})
 
@@ -272,16 +333,16 @@ def main():
         node = nmap[nid]
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
-        lines = display_lines(node)
+        lines = node_lines(node, w)
         out.append(f'<g class="node" data-node-id="{esc(nid)}"><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
-        for li, line in enumerate(lines):
-            size = 13 if li == 0 else 10.5
-            weight = "700" if li == 0 else "400"
-            color = "#0F172A" if li == 0 else "#475569"
-            out.append(f'<text x="{x+14:.1f}" y="{base+li*20:.1f}" font-family="Inter,Arial,sans-serif" '
+        for li, (kind, line) in enumerate(lines):
+            size = 13 if kind == "title" else 10.5
+            weight = "700" if kind == "title" else "400"
+            color = "#0F172A" if kind == "title" else "#475569"
+            out.append(f'<text x="{x+14:.1f}" y="{base+li*18:.1f}" font-family="Inter,Arial,sans-serif" '
                        f'font-size="{size}" font-weight="{weight}" fill="{color}">{esc(line)}</text>')
         out.append("</g>")
 
