@@ -359,6 +359,7 @@ for i in range(23):
         "relation": "calls",
         "label": "HTTP",
         "sync": True,
+        "action": f"source-action-{i}",
         "evidence": [f"test-edge:{i}"],
     })
 # Cross-cluster matching edges intentionally exceed the per-detail context budget.
@@ -411,6 +412,55 @@ PY
   grep -q 'AUTO-SPLIT PASS' "$tmp_visual/dense-render.out"
   python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.set/diagram-set.yaml" >/dev/null
 
+  # Split-set validation must protect every source field, including fields that older
+  # validators did not explicitly whitelist.
+  tampered_spec="$(python3 - "$tmp_visual/dense.set/diagram-set.yaml" <<'PY'
+import sys, yaml
+from pathlib import Path
+manifest_path = Path(sys.argv[1])
+manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+for view in manifest.get("views") or []:
+    path = manifest_path.parent / view["spec"]
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if doc.get("edges"):
+        edge = doc["edges"][0]
+        if "action" in edge:
+            print(path)
+            break
+PY
+)"
+  [ -n "$tampered_spec" ]
+  cp "$tampered_spec" "$tampered_spec.bak"
+  python3 - "$tampered_spec" <<'PY'
+import sys, yaml
+path = sys.argv[1]
+doc = yaml.safe_load(open(path, encoding="utf-8"))
+doc["edges"][0]["action"] = "tampered-action"
+with open(path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(doc, fh, sort_keys=False)
+PY
+  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.set/diagram-set.yaml" >"$tmp_visual/tampered-split.out" 2>&1; then
+    echo "expected tampered source edge field to invalidate split set" >&2
+    exit 1
+  fi
+  grep -q 'differs from source element' "$tmp_visual/tampered-split.out"
+  mv "$tampered_spec.bak" "$tampered_spec"
+
+  cp "$tmp_visual/dense.set/diagram-set.yaml" "$tmp_visual/bad-budget.yaml"
+  python3 - "$tmp_visual/bad-budget.yaml" <<'PY'
+import sys, yaml
+path = sys.argv[1]
+doc = yaml.safe_load(open(path, encoding="utf-8"))
+doc["budgets"]["overview_nodes"] = 1
+with open(path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(doc, fh, sort_keys=False)
+PY
+  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/bad-budget.yaml" >"$tmp_visual/bad-budget.out" 2>&1; then
+    echo "expected impossible split budget to invalidate split set" >&2
+    exit 1
+  fi
+  grep -q 'exceeds overview budget' "$tmp_visual/bad-budget.out"
+
   python3 - "$tmp_visual/dense.set/diagram-set.yaml" <<'PY'
 import sys, yaml
 manifest = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
@@ -419,6 +469,12 @@ assert len(views) >= 3, views
 assert views[0]["id"] == "overview"
 assert manifest["stable_ids"] is True
 assert manifest["invented_architecture_elements"] is False
+budgets = manifest.get("budgets") or {}
+assert budgets["overview_nodes"] == 10, budgets
+assert budgets["detail_core_nodes"] == 8, budgets
+assert budgets["detail_context_nodes"] == 1, budgets
+assert budgets["detail_total_nodes"] == 9, budgets
+assert budgets["integration_nodes"] == 8, budgets
 coverage = manifest.get("coverage") or {}
 assert coverage["nodes_covered"] == coverage["nodes_total"], coverage
 assert coverage["edges_covered"] == coverage["edges_total"], coverage
@@ -433,7 +489,12 @@ integration_edges = {
 }
 assert integration_edges, views
 for view in views:
-    assert view["node_count"] <= 12, view
+    if view["id"] == "overview":
+        assert view["node_count"] <= budgets["overview_nodes"], view
+    elif str(view["id"]).startswith("integration-"):
+        assert view["node_count"] <= budgets["integration_nodes"], view
+    else:
+        assert view["node_count"] <= budgets["detail_total_nodes"], view
 PY
 
   while IFS= read -r spec; do
