@@ -272,7 +272,21 @@ def orient(a, b, c):
 def seg_intersect(a, b, c, d):
     """Proper intersection only; touching endpoints is not a crossing."""
     o1, o2, o3, o4 = orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b)
-    return ((o1 > EPS and o2 < -EPS) or (o1 < -EPS and o2 > EPS)) and            ((o3 > EPS and o4 < -EPS) or (o3 < -EPS and o4 > EPS))
+    return ((o1 > EPS and o2 < -EPS) or (o1 < -EPS and o2 > EPS)) and \
+           ((o3 > EPS and o4 < -EPS) or (o3 < -EPS and o4 > EPS))
+
+
+def seg_overlap_length(a, b, c, d):
+    """Length of a collinear overlap; zero for endpoint touch/non-collinear segments."""
+    if abs(orient(a, b, c)) > EPS or abs(orient(a, b, d)) > EPS:
+        return 0.0
+    if abs(b[0]-a[0]) >= abs(b[1]-a[1]):
+        lo = max(min(a[0], b[0]), min(c[0], d[0]))
+        hi = min(max(a[0], b[0]), max(c[0], d[0]))
+    else:
+        lo = max(min(a[1], b[1]), min(c[1], d[1]))
+        hi = min(max(a[1], b[1]), max(c[1], d[1]))
+    return max(0.0, hi-lo)
 
 
 def segment_rect_cross(a, b, r: Box):
@@ -346,19 +360,37 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
                                     f"edge {e.id} route is {length/direct:.1f}× direct distance", [e.id]))
 
     crossing_pairs = set()
+    overlap_pairs = set()
     for i, e1 in enumerate(edges):
         for e2 in edges[i+1:]:
-            if e1.source and e2.source and ({e1.source, e1.target} & {e2.source, e2.target}):
-                continue
+            key = tuple(sorted((e1.id, e2.id)))
             hit = any(seg_intersect(a, b, c, d)
                       for a, b in zip(e1.points, e1.points[1:])
                       for c, d in zip(e2.points, e2.points[1:]))
-            if hit:
-                key = tuple(sorted((e1.id, e2.id)))
-                if key not in crossing_pairs:
-                    crossing_pairs.add(key)
-                    findings.append(Finding(sev(), "EDGE_EDGE_CROSSING",
-                                            f"edges {e1.id} and {e2.id} cross", list(key)))
+            if hit and key not in crossing_pairs:
+                crossing_pairs.add(key)
+                findings.append(Finding(sev(), "EDGE_EDGE_CROSSING",
+                                        f"edges {e1.id} and {e2.id} cross", list(key)))
+            overlap_len = max(
+                [seg_overlap_length(a, b, c, d)
+                 for a, b in zip(e1.points, e1.points[1:])
+                 for c, d in zip(e2.points, e2.points[1:])] or [0.0]
+            )
+            if overlap_len > 6 and key not in overlap_pairs:
+                overlap_pairs.add(key)
+                findings.append(Finding(sev(), "EDGE_EDGE_OVERLAP",
+                                        f"edges {e1.id} and {e2.id} overlap for {overlap_len:.1f}px", list(key)))
+
+    # A label may cover its own edge by design, but another edge passing through the
+    # label makes the relation ambiguous.
+    for label in labels:
+        owner = label.id[:-6] if label.id.endswith("-label") else ""
+        for e in edges:
+            if e.id == owner:
+                continue
+            if any(segment_rect_cross(a, b, label) for a, b in zip(e.points, e.points[1:])):
+                findings.append(Finding(sev(), "EDGE_LABEL_COLLISION",
+                                        f"edge {e.id} crosses label {label.id}", [e.id, label.id]))
     return findings
 
 
