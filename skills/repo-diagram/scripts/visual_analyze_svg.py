@@ -43,6 +43,14 @@ class Box:
 
 
 @dataclass
+class Region:
+    id: str
+    box: Box
+    kind: str
+    members: set[str]
+
+
+@dataclass
 class Edge:
     id: str
     points: list[tuple[float, float]]
@@ -196,6 +204,7 @@ def dedupe_boxes(boxes):
 def extract(root):
     boxes = []
     labels = []
+    regions = []
     edges = []
     native = False
     for el, ox, oy in walk(root):
@@ -206,6 +215,14 @@ def extract(root):
             b = rect_from_group(el, ox, oy, node_id, "native")
             if b:
                 boxes.append(b)
+                native = True
+        region_kind = el.attrib.get("data-region-kind")
+        if region_kind:
+            rid = el.attrib.get("data-boundary-id") or el.attrib.get("data-group-id") or "region"
+            b = rect_from_group(el, ox, oy, rid, "native")
+            if b:
+                members = {x for x in (el.attrib.get("data-members") or "").split(",") if x}
+                regions.append(Region(rid, b, region_kind, members))
                 native = True
         label_id = el.attrib.get("data-edge-label-id")
         if label_id:
@@ -228,7 +245,7 @@ def extract(root):
                                   el.attrib.get("data-target-id", ""), "native"))
                 native = True
     if native:
-        return boxes, labels, edges, True
+        return boxes, labels, regions, edges, True
 
     # Common Mermaid / Graphviz group conventions. These are warnings by default
     # because third-party renderer DOMs change between versions.
@@ -254,7 +271,7 @@ def extract(root):
             if len(pts) >= 2:
                 edges.append(Edge(el.attrib.get("id") or f"edge-{idxe}", pts, confidence="heuristic"))
                 idxe += 1
-    return dedupe_boxes(boxes), labels, edges, False
+    return dedupe_boxes(boxes), labels, regions, edges, False
 
 
 def overlap(a: Box, b: Box, pad=0.0):
@@ -308,7 +325,16 @@ def canvas_size(root):
     return n(root.attrib.get("width")), n(root.attrib.get("height"))
 
 
-def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
+def contains(outer: Box, inner: Box, margin=0.0):
+    return (
+        outer.left-margin <= inner.left
+        and outer.right+margin >= inner.right
+        and outer.top-margin <= inner.top
+        and outer.bottom+margin >= inner.bottom
+    )
+
+
+def analyze(root, boxes, labels, regions, edges, native, strict_heuristic=False):
     findings = []
 
     def sev(block=True):
@@ -320,6 +346,83 @@ def analyze(root, boxes, labels, edges, native, strict_heuristic=False):
         if ratio > 3.0 or ratio < 0.38:
             findings.append(Finding("warning", "EXTREME_ASPECT",
                                     f"canvas aspect ratio {ratio:.2f}:1 is hard to scan", []))
+
+        if boxes:
+            left = min(b.left for b in boxes)
+            right = max(b.right for b in boxes)
+            top = min(b.top for b in boxes)
+            bottom = max(b.bottom for b in boxes)
+            left_margin = max(0.0, left)
+            right_margin = max(0.0, w-right)
+            bottom_margin = max(0.0, h-bottom)
+            occupied_w = max(1.0, right-left)
+            occupied_h = max(1.0, bottom-top)
+
+            if abs(left_margin-right_margin) > max(80.0, w*0.16):
+                findings.append(Finding(
+                    "warning", "HORIZONTAL_IMBALANCE",
+                    f"content margins differ by {abs(left_margin-right_margin):.1f}px",
+                    []
+                ))
+
+            if bottom_margin > max(180.0, h*0.38):
+                findings.append(Finding(
+                    "warning", "EXCESS_BOTTOM_WHITESPACE",
+                    f"bottom whitespace is {bottom_margin:.1f}px ({bottom_margin/h:.0%} of canvas)",
+                    []
+                ))
+
+            content_density = (occupied_w*occupied_h)/(w*h)
+            if len(boxes) >= 4 and content_density < 0.18:
+                findings.append(Finding(
+                    "warning", "SPARSE_COMPOSITION",
+                    f"node content occupies only {content_density:.0%} of canvas bounding area",
+                    []
+                ))
+
+    # Region geometry should clarify ownership, never accidentally capture unrelated nodes.
+    for region in regions:
+        header = Box(region.id + "-header", region.box.x, region.box.y, region.box.w, min(24.0, region.box.h))
+        for node in boxes:
+            if node.id in region.members:
+                if not contains(region.box, node, 1.0):
+                    findings.append(Finding(
+                        sev(), "REGION_MEMBER_OUTSIDE",
+                        f"{region.kind} region {region.id} does not fully contain member {node.id}",
+                        [region.id, node.id]
+                    ))
+            elif contains(region.box, node, 0.0):
+                findings.append(Finding(
+                    sev(), "REGION_CAPTURES_UNRELATED_NODE",
+                    f"{region.kind} region {region.id} visually captures unrelated node {node.id}",
+                    [region.id, node.id]
+                ))
+            if overlap(header, node, 0):
+                findings.append(Finding(
+                    sev(), "REGION_HEADER_COLLISION",
+                    f"{region.kind} region {region.id} header overlaps node {node.id}",
+                    [region.id, node.id]
+                ))
+
+        for label in labels:
+            if overlap(header, label, 0):
+                findings.append(Finding(
+                    sev(), "REGION_HEADER_COLLISION",
+                    f"{region.kind} region {region.id} header overlaps edge label {label.id}",
+                    [region.id, label.id]
+                ))
+
+    for i, r1 in enumerate(regions):
+        for r2 in regions[i+1:]:
+            if not overlap(r1.box, r2.box, 0):
+                continue
+            nested = contains(r1.box, r2.box, 0) or contains(r2.box, r1.box, 0)
+            if not nested:
+                findings.append(Finding(
+                    sev(), "AMBIGUOUS_REGION_OVERLAP",
+                    f"regions {r1.id} and {r2.id} partially overlap without nesting",
+                    [r1.id, r2.id]
+                ))
 
     for i, a in enumerate(boxes):
         for b in boxes[i+1:]:
@@ -440,8 +543,8 @@ def main():
         print(f"VISUAL-ANALYZER ERROR: {exc}", file=sys.stderr)
         return 2
 
-    boxes, labels, edges, native = extract(root)
-    findings = analyze(root, boxes, labels, edges, native, args.strict_heuristic)
+    boxes, labels, regions, edges, native = extract(root)
+    findings = analyze(root, boxes, labels, regions, edges, native, args.strict_heuristic)
     crossings = sum(1 for f in findings if f.code == "EDGE_EDGE_CROSSING")
     if args.max_crossings is not None and crossings > args.max_crossings:
         findings.append(Finding("blocking" if native or args.strict_heuristic else "warning",
@@ -453,11 +556,12 @@ def main():
         "geometry": "native" if native else "heuristic",
         "nodes": len(boxes),
         "labels": len(labels),
+        "regions": len(regions),
         "edges": len(edges),
         "crossings": crossings,
         "findings": [asdict(f) for f in findings],
     }
-    print(f"VISUAL-ANALYZER: {args.svg.name} — {len(boxes)} nodes, {len(labels)} labels, {len(edges)} edges, geometry={report['geometry']}")
+    print(f"VISUAL-ANALYZER: {args.svg.name} — {len(boxes)} nodes, {len(labels)} labels, {len(regions)} regions, {len(edges)} edges, geometry={report['geometry']}")
     for f in findings:
         print(f"  {f.severity.upper()} {f.code}: {f.message}")
     if not findings:
