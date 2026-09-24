@@ -110,7 +110,13 @@ def _seed_clusters(doc):
         available = [x for x in members if x not in assigned]
         if len(available) >= 2:
             label = boundary.get("name") or boundary.get("id") or "Boundary"
-            clusters.append({"label": str(label), "members": available, "source": "boundary"})
+            boundary_id = str(boundary.get("id") or label)
+            clusters.append({
+                "label": str(label),
+                "members": available,
+                "source": "boundary",
+                "seed_key": f"boundary:{boundary_id}",
+            })
             assigned.update(available)
 
     # Presentation groups are useful only for nodes not already owned by a real boundary.
@@ -121,7 +127,13 @@ def _seed_clusters(doc):
         available = [x for x in members if x not in assigned]
         if len(available) >= 2:
             label = group.get("label") or group.get("name") or group.get("id") or "Group"
-            clusters.append({"label": str(label), "members": available, "source": "group"})
+            group_id = str(group.get("id") or label)
+            clusters.append({
+                "label": str(label),
+                "members": available,
+                "source": "group",
+                "seed_key": f"group:{group_id}",
+            })
             assigned.update(available)
 
     # Remaining nodes use semantic roles, which preserves the renderer's layer vocabulary.
@@ -138,6 +150,7 @@ def _seed_clusters(doc):
             "label": role.replace("-", " ").title(),
             "members": members,
             "source": "semantic-role",
+            "seed_key": f"role:{role}",
         })
         assigned.update(members)
 
@@ -229,6 +242,7 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
                 "label": seed["label"] + suffix,
                 "members": members,
                 "source": seed["source"],
+                "seed_key": seed["seed_key"],
             })
 
     # Merge tiny fragments when they have a strong connection to another cluster.
@@ -242,6 +256,9 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
             candidates = []
             for j, other in enumerate(expanded):
                 if i == j:
+                    continue
+                # Never erase authored/evidence-derived grouping provenance.
+                if cluster.get("seed_key") != other.get("seed_key"):
                     continue
                 if len(cluster["members"]) + len(other["members"]) > max_detail_nodes:
                     continue
@@ -257,11 +274,9 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
                 target = expanded[j]
                 target["members"].extend(cluster["members"])
                 target["members"] = sorted(set(target["members"]))
-                target["source"] = (
-                    target["source"]
-                    if target["source"] == cluster["source"]
-                    else "graph-connected-merge"
-                )
+                # seed_key equality above guarantees this merge stays inside
+                # one original boundary/group/semantic-role seed.
+                target["source"] = target["source"]
                 expanded.pop(i)
                 changed = True
                 break
@@ -654,6 +669,7 @@ def plan_views(
             "label": cluster["label"],
             "core": list(cluster["members"]),
             "cluster_source": cluster.get("source"),
+            "cluster_seed_key": cluster.get("seed_key"),
             "cluster_quality": copy.deepcopy(cluster.get("quality") or {}),
             "spec": make_view(
                 doc,
@@ -744,6 +760,8 @@ def write_plan(spec_path, outdir, force=False, max_nodes=DEFAULT_MAX_NODES,
         }
         if view.get("cluster_source"):
             manifest_entry["cluster_source"] = view["cluster_source"]
+        if view.get("cluster_seed_key"):
+            manifest_entry["cluster_seed_key"] = view["cluster_seed_key"]
         if view.get("cluster_quality"):
             manifest_entry["cluster_quality"] = copy.deepcopy(view["cluster_quality"])
         if view.get("cluster_coverage"):
