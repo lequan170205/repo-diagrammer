@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -92,6 +92,24 @@ YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/architecture.svg" --strict --max-crossings 0 >/dev/null
 
+  cat > "$tmp_visual/same-row.spec.yaml" <<'YAML'
+question: same-row routing
+type: c4-container
+scope: self-test
+nodes:
+  - {id: a, label: Service A, semantic_role: domain, evidence: ["test"]}
+  - {id: b, label: Service B, semantic_role: domain, evidence: ["test"]}
+edges:
+  - {id: same, from: a, to: b, relation: calls, label: HTTP, sync: true, evidence: ["test"]}
+presentation:
+  style: polished-overview
+  title: Same Row
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" >/dev/null
+  python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/same-row.svg" --strict --max-crossings 0 >/dev/null
+
   cat > "$tmp_visual/bad.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180">
   <g data-node-id="a"><rect x="20" y="20" width="80" height="50"/></g>
@@ -102,6 +120,21 @@ YAML
 SVG
   if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/bad.svg" --strict >/dev/null 2>&1; then
     echo "expected geometry defect was not detected" >&2
+    exit 1
+  fi
+
+  cat > "$tmp_visual/overlap.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <g data-node-id="a"><rect x="20" y="20" width="60" height="40"/></g>
+  <g data-node-id="b"><rect x="320" y="20" width="60" height="40"/></g>
+  <g data-node-id="c"><rect x="20" y="160" width="60" height="40"/></g>
+  <g data-node-id="d"><rect x="320" y="160" width="60" height="40"/></g>
+  <g data-edge-id="e1" data-source-id="a" data-target-id="b"><path d="M 80,40 L 200,40 L 200,90 L 320,90"/></g>
+  <g data-edge-id="e2" data-source-id="c" data-target-id="d"><path d="M 80,180 L 200,180 L 200,90 L 320,90"/></g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/overlap.svg" --strict >/dev/null 2>&1; then
+    echo "expected overlapping-edge defect was not detected" >&2
     exit 1
   fi
   rm -rf "$tmp_visual"
