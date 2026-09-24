@@ -172,7 +172,8 @@ A polished overview should feel like a technical architecture poster:
 - data and observability visually anchored at the bottom;
 - whitespace between regions, not inside labels;
 - no accidental presentation group/boundary capture of unrelated nodes;
-- legends explain only encodings actually used on the canvas; stale or invented legend keys are not allowed.
+- legends explain only encodings actually used on the canvas; stale or invented legend keys are not allowed;
+- generated detail views visually subordinate context-only nodes without hiding their semantic role.
 
 A source-correct diagram that looks like raw auto-layout should be iterated before
 delivery.
