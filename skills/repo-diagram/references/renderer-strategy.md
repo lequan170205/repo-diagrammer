@@ -5,7 +5,7 @@ change the meaning of a diagram to fit a renderer.
 
 | Diagram | Preferred | Fallback |
 |---|---|---|
-| C4 landscape/context/container/component | Mermaid flowchart + ELK | PlantUML / Graphviz preview |
+| C4 landscape/context/container/component | Native SVG for polished-overview; Mermaid + ELK for notation-first C4 | PlantUML / Graphviz preview |
 | C4 dynamic | Mermaid sequence | PlantUML sequence |
 | Sequence | Mermaid simple; PlantUML complex | the other |
 | Class | PlantUML | Mermaid classDiagram |
@@ -18,7 +18,16 @@ change the meaning of a diagram to fit a renderer.
 | Flowchart | Mermaid + ELK | Graphviz dot |
 | Swimlane | Mermaid native if >=11.16 | flowchart lanes / PlantUML activity |
 
-Record preferred and fallback renderer in the spec.
+Record preferred and fallback renderer in the spec. For `polished-overview` static architecture,
+read `visual-compiler.md`: the native SVG renderer is preferred because it owns node
+coordinates and edge routes and can be inspected mechanically.
+
+## Native polished architecture renderer
+
+`render_architecture_svg.py` is intentionally narrow: static C4/high-level architecture
+only. It uses the evidence spec directly, performs layered placement, barycentric node
+ordering and orthogonal obstacle-aware routing, then emits stable SVG metadata for the
+geometry analyzer. Do not use it for sequence/class/ER/state notation.
 
 ## Mermaid capability gate
 

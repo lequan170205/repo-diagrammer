@@ -27,7 +27,9 @@ The rule is: **beautify the evidence; never beautify by inventing or blurring it
 
 ## Default composition
 
-Prefer a balanced landscape composition with `flowchart TB`.
+Prefer a balanced landscape composition with top-to-bottom layered flow. For
+`polished-overview`, prefer the native SVG renderer described in `visual-compiler.md`;
+use Mermaid `flowchart TB` when a portable notation source is explicitly preferred.
 
 ```text
                          Clients
@@ -177,13 +179,12 @@ delivery.
 
 For `presentation.style: polished-overview`:
 
-1. Render.
-2. Inspect at 100%.
-3. Count avoidable crossings.
-4. Check primary path, hierarchy, balance, labels and legend.
-5. Reorder declarations / shorten copy / adjust direction.
-6. Render again.
-7. Only mark `Visual review: passed` after inspecting the final render.
+1. Render from the evidence spec.
+2. Run `visual_analyze_svg.py --strict` with the crossing budget.
+3. If Blocking: reorder/reroute/shorten copy and render again.
+4. Inspect the surviving final render at 100%.
+5. Check primary path, hierarchy, balance, typography, labels and legend.
+6. Only mark `Visual review: passed` when both geometry gate and rendered inspection pass.
 
 If the environment cannot render Mermaid, do not silently substitute "looks valid in
 source" for this loop. Mark visual review unverified.

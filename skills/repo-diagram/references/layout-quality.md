@@ -59,6 +59,10 @@ Practical moves, in order:
 Zero crossings is the target for ≤10 nodes. For a medium high-level overview, more
 than two avoidable crossings should trigger another layout pass.
 
+For geometry-owned SVG output, this is not merely advisory. Run
+`visual_analyze_svg.py --strict` and treat `EDGE_NODE_CROSSING`, `NODE_OVERLAP`, and
+crossings above the declared budget as Blocking.
+
 Never insert invisible spacer nodes merely to coerce the renderer. They make the
 source brittle. Prefer ordering, grouping and direction.
 
@@ -144,6 +148,16 @@ boundary.
 - Are labels short enough to keep boxes balanced?
 - Any hub with >6 edges that should be represented as a broker/group rather than a
   giant central box?
+
+## Machine geometry gate
+
+Before subjective inspection, run the geometry analyzer on the rendered SVG. It can
+measure node overlap, edge-through-node defects, edge/edge crossings, tight gaps,
+route stretch and canvas aspect. Read `visual-compiler.md` for confidence rules and
+repair order.
+
+A machine PASS does not prove good typography or visual hierarchy, but a machine
+Blocking finding means the diagram is not deliverable.
 
 ## Post-render visual acceptance gate
 

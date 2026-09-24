@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Render Mermaid, PlantUML or Graphviz source and run lightweight SVG sanity checks.
+# Render supported diagram sources and run syntax plus geometry-aware SVG checks.
 set -euo pipefail
-if [ "$#" -lt 1 ]; then echo "usage: $0 <diagram.{mmd,puml,dot,md}> [output.svg]" >&2; exit 2; fi
+if [ "$#" -lt 1 ]; then echo "usage: $0 <diagram.{mmd,puml,dot,md,yaml,yml}> [output.svg]" >&2; exit 2; fi
 input="$1"; output="${2:-${input%.*}.svg}"; ext="${input##*.}"
 have(){ command -v "$1" >/dev/null 2>&1; }
 case "$ext" in
@@ -23,9 +23,16 @@ case "$ext" in
   md)
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     bash "$script_dir/validate_mermaid.sh" "$input"; exit 0 ;;
+  yaml|yml)
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if ! have python3; then echo "renderer unavailable: python3" >&2; exit 2; fi
+    python3 "$script_dir/render_architecture_svg.py" "$input" "$output" ;;
   *) echo "unsupported extension: .$ext" >&2; exit 2 ;;
 esac
 [ -s "$output" ] || { echo "render failed: $output" >&2; exit 1; }
 echo "rendered: $output"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$script_dir/visual_lint_svg.py" ] && have python3; then python3 "$script_dir/visual_lint_svg.py" "$output" || true; fi
+if [ -f "$script_dir/visual_analyze_svg.py" ] && have python3; then
+  python3 "$script_dir/visual_analyze_svg.py" "$output" || true
+fi

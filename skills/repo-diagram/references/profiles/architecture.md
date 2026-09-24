@@ -35,11 +35,13 @@ This is documented alignment, not an automatic full-conformance claim.
 ## Presentation contract
 
 Context: system of interest visually dominant. Container/high-level views use the
-polished-overview style when appropriate. Component views keep the owning container
-boundary obvious. External systems stay peripheral.
+polished-overview style when appropriate. For polished static architecture, prefer the
+geometry-owned SVG renderer and require the geometry gate from `visual-compiler.md`.
+Component views keep the owning container boundary obvious. External systems stay peripheral.
 
 ## Blocking
 
 Mixed abstraction; unlabelled relation; missing protocol; false boundary; missing C4
 legend/type/responsibility in strict mode; cross-view renaming; bad ISO metadata
-references; static/runtime/deployment concerns crammed into one view.
+references; static/runtime/deployment concerns crammed into one view; node overlap;
+edge through unrelated node; avoidable crossings above the declared budget.

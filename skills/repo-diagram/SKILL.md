@@ -10,7 +10,7 @@ Treat diagramming as repository analysis, not illustration.
 The pipeline is:
 
 ```text
-question → repository evidence → semantic IR → view → type profile → renderer → visual/source review
+question → repository evidence → semantic IR → view → type profile → layout plan → renderer → geometry gate → visual/source review
 ```
 
 ## Rules that override everything
@@ -112,12 +112,12 @@ The profile defines:
 - Blocking review defects.
 
 High-level/backend/system architecture also loads
-`references/high-level-architecture-style.md`.
+`references/high-level-architecture-style.md` and `references/visual-compiler.md`.
 
 ## Step 5 — Choose renderer and write source
 
-Read `references/renderer-strategy.md` and `references/notation.md`.
-Do not default blindly to Mermaid.
+Read `references/renderer-strategy.md`, `references/notation.md`, and
+`references/visual-compiler.md`. Do not default blindly to Mermaid.
 
 Record preferred/fallback renderer in the spec. A fallback is allowed only if it
 preserves semantics.
@@ -138,6 +138,16 @@ bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.puml
 bash "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_any.sh" path/to/diagram.dot
 ```
+
+For static high-level architecture with `presentation.style: polished-overview`,
+prefer the geometry-owned renderer:
+```bash
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_architecture_svg.py" path/to/<slug>.spec.yaml path/to/<slug>.svg
+python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/visual_analyze_svg.py" path/to/<slug>.svg --strict --max-crossings 0
+```
+
+If the geometry gate reports a Blocking defect, repair layout/routing and render again.
+Never mark visual review passed while an edge crosses an unrelated node.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 
@@ -185,6 +195,7 @@ For sets, include `model.spec.yaml` and an ordered README.
 - `renderer-strategy.md` — renderer capability matrix
 - `notation.md` — syntax/parser traps/templates
 - `layout-quality.md` — cross-type readability
+- `visual-compiler.md` — geometry ownership, analyzer and repair loop
 - `high-level-architecture-style.md` — polished architecture visual system
 - `repo-scout-procedure.md` — bounded exploration
 - `diagram-reviewer-procedure.md` — final quality gate

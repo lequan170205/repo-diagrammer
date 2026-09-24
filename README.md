@@ -12,7 +12,8 @@ question
   → semantic IR
   → selected view
   → type-specific quality profile
-  → renderer selection
+  → layout / renderer selection
+  → geometry gate
   → rendered visual review
   → source-backed review
 ```
@@ -65,7 +66,8 @@ The plugin does not force Mermaid onto every problem.
 
 | Type | Preferred renderer |
 |---|---|
-| C4 static / dataflow / flowchart | Mermaid + ELK |
+| C4 static polished overview | Native SVG visual compiler |
+| C4 notation-first / dataflow / flowchart | Mermaid + ELK |
 | Sequence | Mermaid simple; PlantUML complex |
 | Class | PlantUML |
 | ER | Mermaid |
@@ -116,6 +118,11 @@ state, topology for deployment, actor goals for use case, ownership for swimlane
 ### Visual acceptance
 The **rendered** result is inspected at 100%. Layout, hierarchy, crossings, labels,
 density and legend semantics can be Blocking defects.
+
+For polished static architecture, the native visual compiler owns node geometry and
+orthogonal edge routing. `visual_analyze_svg.py` mechanically checks node overlap,
+edge-through-node defects, edge/edge crossings, tight gaps and route stretch before
+the final 100% visual inspection.
 
 High-level architecture additionally uses the polished technical-poster style from
 `high-level-architecture-style.md`.
@@ -223,11 +230,14 @@ repo-diagrammer/
 │   │   │   ├── profiles/
 │   │   │   ├── standards/
 │   │   │   ├── layout-quality.md
+│   │   │   ├── visual-compiler.md
 │   │   │   └── high-level-architecture-style.md
 │   │   └── scripts/
 │   │       ├── render_any.sh
+│   │       ├── render_architecture_svg.py
 │   │       ├── validate_spec.py
 │   │       ├── visual_lint_svg.py
+│   │       ├── visual_analyze_svg.py
 │   │       └── self_test.sh
 │   ├── diagram/
 │   ├── diagram-review/
