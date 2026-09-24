@@ -695,6 +695,76 @@ PY
   fi
   grep -q 'edges ' "$tmp_visual/threshold.out"
 
+  # A long primary path must not consume the whole overview when other clusters exist.
+  cat > "$tmp_visual/overview-quota.spec.yaml" <<'YAML'
+question: overview quota
+type: c4-container
+scope: self-test overview quota
+nodes:
+  - {id: p1, label: P1, semantic_role: domain, evidence: ["test:p1"]}
+  - {id: p2, label: P2, semantic_role: domain, evidence: ["test:p2"]}
+  - {id: p3, label: P3, semantic_role: domain, evidence: ["test:p3"]}
+  - {id: p4, label: P4, semantic_role: domain, evidence: ["test:p4"]}
+  - {id: d1, label: D1, semantic_role: data, evidence: ["test:d1"]}
+  - {id: d2, label: D2, semantic_role: data, evidence: ["test:d2"]}
+  - {id: e1, label: E1, semantic_role: external, evidence: ["test:e1"]}
+  - {id: e2, label: E2, semantic_role: external, evidence: ["test:e2"]}
+edges:
+  - {id: p12, from: p1, to: p2, relation: calls, evidence: ["test:p12"]}
+  - {id: p23, from: p2, to: p3, relation: calls, evidence: ["test:p23"]}
+  - {id: p34, from: p3, to: p4, relation: calls, evidence: ["test:p34"]}
+  - {id: pd, from: p4, to: d1, relation: writes, evidence: ["test:pd"]}
+  - {id: de, from: d2, to: e1, relation: calls, evidence: ["test:de"]}
+boundaries:
+  - {id: primary, name: Primary, contains: [p1, p2, p3, p4], kind: subsystem, evidence: ["test:primary"]}
+  - {id: data, name: Data, contains: [d1, d2], kind: subsystem, evidence: ["test:data"]}
+  - {id: external, name: External, contains: [e1, e2], kind: subsystem, evidence: ["test:external"]}
+view:
+  profile: architecture
+  primary_path: [p1, p2, p3, p4]
+presentation:
+  style: polished-overview
+  title: Overview Quota
+layout:
+  crossing_target: 0
+YAML
+  python3 "$core/scripts/density_planner.py" "$tmp_visual/overview-quota.spec.yaml" "$tmp_visual/overview-quota.set" --force --detail-nodes 4 --overview-nodes 4 --context-nodes 0 >/dev/null
+  python3 "$core/scripts/validate_split_set.py" "$tmp_visual/overview-quota.spec.yaml" "$tmp_visual/overview-quota.set/diagram-set.yaml" >/dev/null
+  python3 - "$tmp_visual/overview-quota.set/diagram-set.yaml" <<'PY'
+import sys, yaml
+manifest = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+overview = next(v for v in manifest["views"] if v["id"] == "overview")
+details = [
+    v for v in manifest["views"]
+    if v["id"] != "overview" and not str(v["id"]).startswith("integration-")
+]
+overview_nodes = set(overview["core_nodes"])
+assert len(overview_nodes) <= 4, overview
+assert len(details) == 3, details
+assert all(overview_nodes & set(v["core_nodes"]) for v in details), (overview, details)
+coverage = overview["cluster_coverage"]
+assert coverage["clusters_total"] == 3, coverage
+assert coverage["clusters_represented"] == 3, coverage
+assert coverage["missing_cluster_ids"] == [], coverage
+assert {"p1", "p2"} <= overview_nodes, overview
+PY
+
+  cp "$tmp_visual/overview-quota.set/diagram-set.yaml" "$tmp_visual/overview-quota.set/bad-overview-coverage.yaml"
+  python3 - "$tmp_visual/overview-quota.set/bad-overview-coverage.yaml" <<'PY'
+import sys, yaml
+path = sys.argv[1]
+doc = yaml.safe_load(open(path, encoding="utf-8"))
+overview = next(v for v in doc["views"] if v["id"] == "overview")
+overview["cluster_coverage"]["missing_cluster_ids"] = ["view-99-fake"]
+with open(path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(doc, fh, sort_keys=False)
+PY
+  if python3 "$core/scripts/validate_split_set.py" "$tmp_visual/overview-quota.spec.yaml" "$tmp_visual/overview-quota.set/bad-overview-coverage.yaml" >"$tmp_visual/bad-overview-coverage.out" 2>&1; then
+    echo "expected tampered overview cluster coverage to fail validation" >&2
+    exit 1
+  fi
+  grep -q 'cluster_coverage mismatch' "$tmp_visual/bad-overview-coverage.out"
+
   rm -rf "$tmp_visual"
 fi
 
