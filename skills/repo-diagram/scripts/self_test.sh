@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -247,6 +247,85 @@ YAML
   fi
   grep -q 'AUTO-REPAIR STOP' "$tmp_visual/nonrepairable.out"
   grep -q 'REGION_CAPTURES_UNRELATED_NODE' "$tmp_visual/nonrepairable.out"
+
+  python3 - "$tmp_visual/dense.spec.yaml" <<'PY'
+import sys, yaml
+path = sys.argv[1]
+roles = ["clients", "api", "domain", "data"]
+nodes = []
+for r, role in enumerate(roles):
+    for i in range(6):
+        idx = r * 6 + i
+        nodes.append({
+            "id": f"n{idx:02d}",
+            "label": f"{role.title()} {i+1}",
+            "semantic_role": role,
+            "evidence": [f"test:{idx}"],
+        })
+edges = []
+for i in range(23):
+    edges.append({
+        "id": f"e{i:02d}",
+        "from": f"n{i:02d}",
+        "to": f"n{i+1:02d}",
+        "relation": "calls",
+        "label": "HTTP",
+        "sync": True,
+        "evidence": [f"test-edge:{i}"],
+    })
+doc = {
+    "question": "dense architecture split",
+    "type": "c4-container",
+    "scope": "self-test dense",
+    "nodes": nodes,
+    "edges": edges,
+    "view": {"primary_path": ["n00", "n01", "n02", "n03"]},
+    "presentation": {"style": "polished-overview", "title": "Dense Architecture"},
+    "layout": {
+        "crossing_target": 0,
+        "auto_split": {
+            "enabled": True,
+            "max_nodes": 20,
+            "detail_nodes": 8,
+            "overview_nodes": 10,
+            "context_nodes": 2,
+        },
+    },
+}
+with open(path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(doc, fh, sort_keys=False)
+PY
+
+  if python3 "$core/scripts/density_planner.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/check-only" --check >"$tmp_visual/density.out" 2>&1; then
+    echo "expected dense graph check to request splitting" >&2
+    exit 1
+  else
+    status=$?
+    [ "$status" -eq 3 ] || { cat "$tmp_visual/density.out" >&2; exit "$status"; }
+  fi
+  grep -q 'DENSITY SPLIT REQUIRED' "$tmp_visual/density.out"
+
+  python3 "$core/scripts/render_polished.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.svg" --max-passes 3 >"$tmp_visual/dense-render.out"
+  [ -s "$tmp_visual/dense.svg" ]
+  [ -s "$tmp_visual/dense.set/diagram-set.yaml" ]
+  grep -q 'AUTO-SPLIT PASS' "$tmp_visual/dense-render.out"
+  python3 "$core/scripts/validate_split_set.py" "$tmp_visual/dense.spec.yaml" "$tmp_visual/dense.set/diagram-set.yaml" >/dev/null
+
+  python3 - "$tmp_visual/dense.set/diagram-set.yaml" <<'PY'
+import sys, yaml
+manifest = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+views = manifest.get("views") or []
+assert len(views) >= 3, views
+assert views[0]["id"] == "overview"
+assert manifest["stable_ids"] is True
+assert manifest["invented_architecture_elements"] is False
+for view in views:
+    assert view["node_count"] <= 12, view
+PY
+
+  while IFS= read -r spec; do
+    python3 "$core/scripts/validate_spec.py" "$spec" >/dev/null
+  done < <(find "$tmp_visual/dense.set" -name '*.spec.yaml' -type f | sort)
 
   rm -rf "$tmp_visual"
 fi
