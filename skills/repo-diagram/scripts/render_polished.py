@@ -187,8 +187,6 @@ def main():
     with tempfile.TemporaryDirectory(prefix="repo-diagrammer-repair-") as tmp:
         tmpdir = Path(tmp)
         last_findings = []
-        best = None
-        best_blocking = 10**9
 
         typography_status = "unverified"
         crossing_codes = {"EDGE_EDGE_CROSSING", "EDGE_EDGE_OVERLAP", "CROSSING_BUDGET"}
@@ -224,10 +222,6 @@ def main():
             blocking = [f for f in findings if f.get("severity") == "blocking"]
             codes = {f.get("code") for f in blocking}
             last_findings = findings
-
-            if len(blocking) < best_blocking:
-                best_blocking = len(blocking)
-                best = svg
 
             print(
                 f"AUTO-REPAIR pass {idx}/{max_passes}: spacing={spacing_scale:.2f}, "
@@ -336,16 +330,18 @@ def main():
             for candidate in tmpdir.iterdir():
                 shutil.copyfile(candidate, attempts_root / candidate.name)
 
+        remaining_blocking = [
+            f for f in last_findings if f.get("severity") == "blocking"
+        ]
         print(
-            f"AUTO-REPAIR FAILED: best pass still has {best_blocking} blocking defect(s).",
+            f"AUTO-REPAIR FAILED: final pass has {len(remaining_blocking)} blocking defect(s).",
             file=sys.stderr,
         )
-        for finding in last_findings:
-            if finding.get("severity") == "blocking":
-                print(
-                    f"  {finding.get('code')}: {finding.get('message')}",
-                    file=sys.stderr,
-                )
+        for finding in remaining_blocking:
+            print(
+                f"  {finding.get('code')}: {finding.get('message')}",
+                file=sys.stderr,
+            )
         return 1
 
 
