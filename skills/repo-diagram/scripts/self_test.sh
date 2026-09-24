@@ -71,8 +71,9 @@ fi
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   tmp_visual="$(mktemp -d)"
-  python3 "$core/scripts/render_architecture_svg.py"     "$core/tests/fixtures/valid-polished-sidecars.spec.yaml"     "$tmp_visual/architecture.svg" >/dev/null
-  if ! python3 "$core/scripts/visual_analyze_svg.py" "$tmp_visual/architecture.svg" --strict --max-crossings 0 >"$tmp_visual/architecture.out" 2>&1; then
+  if ! bash "$core/scripts/render_any.sh" \
+    "$core/tests/fixtures/valid-polished-sidecars.spec.yaml" \
+    "$tmp_visual/architecture.svg" >"$tmp_visual/architecture.out" 2>&1; then
     cat "$tmp_visual/architecture.out" >&2
     exit 1
   fi
