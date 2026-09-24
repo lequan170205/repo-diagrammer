@@ -28,7 +28,7 @@ polished-overview`, prefer `render_architecture_svg.py` when PyYAML is available
 It owns node geometry instead of delegating the entire composition to Mermaid:
 
 - deterministic layered placement;
-- barycentric ordering to reduce crossings;
+- declaration-order-aware barycentric ordering plus adjacent-swap hill climbing;
 - candidate-scored orthogonal edge routing;
 - obstacle-aware perimeter routing for long cross-layer edges;
 - route scoring that penalizes node hits, crossings, long shared corridors, bends and route length;
@@ -74,8 +74,10 @@ required.
 ## Automatic repair loop
 
 Use `render_polished.py` as the default entry point for polished static architecture.
-It runs the native renderer and strict geometry analyzer, then retries with progressively
-roomier spacing when the Blocking defects are layout-repairable.
+It runs the native renderer and strict geometry analyzer, then performs
+defect-directed presentation search. Crossing/overlap defects trigger alternate node
+ordering and routing-order variants; collision defects increase spacing; typography
+defects increase text safety margins.
 
 Repair passes may change only presentation geometry. They must never change node
 identity, relation direction, grouping membership, protocol, evidence, or architectural

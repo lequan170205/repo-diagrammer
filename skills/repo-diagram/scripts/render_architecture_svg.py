@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from geometry_router import place_label, route_edge
+from layout_optimizer import optimize_rows
 from text_metrics import estimate_text_width, fit_font_size, wrap_text
 
 try:
@@ -120,33 +121,6 @@ def parse_rows(doc, nodes):
     return out
 
 
-def barycentric_order(rows, edges):
-    pos = {nid: i for row in rows for i, nid in enumerate(row["nodes"])}
-    adj = {nid: [] for row in rows for nid in row["nodes"]}
-    for e in edges:
-        a, b = e.get("from"), e.get("to")
-        if a in adj and b in adj:
-            adj[a].append(b)
-            adj[b].append(a)
-
-    for _ in range(5):
-        for forward in (True, False):
-            seq = range(1, len(rows)) if forward else range(len(rows)-2, -1, -1)
-            for ri in seq:
-                target = ri-1 if forward else ri+1
-                target_set = set(rows[target]["nodes"])
-                old = {nid: i for i, nid in enumerate(rows[ri]["nodes"])}
-
-                def score(nid):
-                    vals = [pos.get(x, 0) for x in adj[nid] if x in target_set]
-                    return (sum(vals)/len(vals) if vals else old[nid], old[nid])
-
-                rows[ri]["nodes"].sort(key=score)
-                for i, nid in enumerate(rows[ri]["nodes"]):
-                    pos[nid] = i
-    return rows
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("spec", type=Path)
@@ -155,6 +129,10 @@ def main():
                     help="presentation-only spacing multiplier used by auto-repair")
     ap.add_argument("--text-width-scale", type=float, default=1.0,
                     help="conservative text-width multiplier used by browser repair")
+    ap.add_argument("--layout-variant", type=int, default=0,
+                    help="deterministic node-order variant used by auto-repair")
+    ap.add_argument("--routing-variant", type=int, default=0,
+                    help="deterministic edge routing-order variant used by auto-repair")
     args = ap.parse_args()
     spacing_scale = max(0.85, min(1.8, args.spacing_scale))
     text_width_scale = max(1.0, min(1.5, args.text_width_scale))
@@ -172,7 +150,16 @@ def main():
         print("ARCH-RENDERER: no nodes", file=sys.stderr)
         return 1
 
-    rows = barycentric_order(parse_rows(doc, nodes), edges)
+    layout = doc.get("layout") or {}
+    view = doc.get("view") or {}
+    primary_path = [str(x) for x in (view.get("primary_path") or [])]
+    rows, layout_metrics = optimize_rows(
+        parse_rows(doc, nodes),
+        edges,
+        declaration_order=layout.get("declaration_order") or [],
+        primary_path=primary_path,
+        variant=args.layout_variant,
+    )
     nmap = {n["id"]: n for n in nodes}
     title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
     subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
@@ -223,7 +210,10 @@ def main():
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w:.0f}" height="{canvas_h:.0f}" '
-               f'viewBox="0 0 {canvas_w:.0f} {canvas_h:.0f}" role="img">')
+               f'viewBox="0 0 {canvas_w:.0f} {canvas_h:.0f}" role="img" '
+               f'data-layout-variant="{args.layout_variant % 4}" '
+               f'data-routing-variant="{args.routing_variant % 4}" '
+               f'data-estimated-crossings="{layout_metrics.get("estimated_crossings", 0)}">')
     out.append('<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
                '<path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>')
     out.append('<rect width="100%" height="100%" fill="#FFFFFF"/>')
@@ -294,7 +284,6 @@ def main():
         out.append(f'<text x="{margin}" y="{ry:.1f}" font-family="Inter,Arial,sans-serif" font-size="11" '
                    f'font-weight="600" fill="#94A3B8" letter-spacing="0.6">{esc(row["label"].upper())}</text>')
 
-    primary_path = [str(x) for x in ((doc.get("view") or {}).get("primary_path") or [])]
     primary_pairs = set(zip(primary_path, primary_path[1:]))
     primary_ids = set(primary_path)
 
@@ -303,7 +292,29 @@ def main():
         pair = (str(edge.get("from") or ""), str(edge.get("to") or ""))
         return eid in primary_ids or pair in primary_pairs
 
-    ordered_edges = sorted(enumerate(edges), key=lambda item: (not is_primary(item[1]), item[0]))
+    degree = {nid: 0 for nid in boxes}
+    for edge in edges:
+        for nid in (str(edge.get("from") or ""), str(edge.get("to") or "")):
+            if nid in degree:
+                degree[nid] += 1
+
+    def routing_key(item):
+        index, edge = item
+        sid = str(edge.get("from") or "")
+        tid = str(edge.get("to") or "")
+        span = abs(row_index.get(sid, 0)-row_index.get(tid, 0))
+        endpoint_degree = degree.get(sid, 0)+degree.get(tid, 0)
+        primary_rank = 0 if is_primary(edge) else 1
+        variant = args.routing_variant % 4
+        if variant == 1:
+            return (primary_rank, -span, -endpoint_degree, index)
+        if variant == 2:
+            return (primary_rank, span, -endpoint_degree, index)
+        if variant == 3:
+            return (primary_rank, -endpoint_degree, -span, index)
+        return (primary_rank, index)
+
+    ordered_edges = sorted(enumerate(edges), key=routing_key)
     incident = {nid: [] for nid in boxes}
     for original_index, edge in ordered_edges:
         eid = str(edge.get("id") or f"edge-{original_index}")

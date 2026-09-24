@@ -32,7 +32,34 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/text_metrics.py" "$core/scripts/browser_typography.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/layout_optimizer.py" "$core/scripts/text_metrics.py" "$core/scripts/browser_typography.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
+
+PYTHONPATH="$core/scripts" python3 - <<'PY'
+from layout_optimizer import crossing_score, optimize_rows
+
+rows = [
+    {"label": "top", "nodes": ["a", "b"]},
+    {"label": "bottom", "nodes": ["d", "c"]},
+]
+edges = [
+    {"from": "a", "to": "c"},
+    {"from": "b", "to": "d"},
+]
+before, before_meta = crossing_score(rows, edges)
+optimized, after_meta = optimize_rows(rows, edges, variant=0)
+after, _ = crossing_score(optimized, edges)
+assert before_meta["estimated_crossings"] == 1, before_meta
+assert after_meta["estimated_crossings"] == 0, (optimized, after_meta)
+assert after < before
+
+decl_rows, _ = optimize_rows(
+    [{"nodes": ["a", "b", "c"]}],
+    [],
+    declaration_order=["c", "a", "b"],
+    variant=0,
+)
+assert decl_rows[0]["nodes"] == ["c", "a", "b"], decl_rows
+PY
 
 if python3 -c 'import yaml' >/dev/null 2>&1; then
   expect_pass() {
@@ -127,9 +154,11 @@ presentation:
 layout:
   crossing_target: 0
 YAML
-  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" >/dev/null
+  python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" --layout-variant 2 --routing-variant 3 >/dev/null
   visual_expect_pass "$tmp_visual/same-row.svg" --max-crossings 0
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
+  grep -q 'data-layout-variant="2"' "$tmp_visual/same-row.svg"
+  grep -q 'data-routing-variant="3"' "$tmp_visual/same-row.svg"
 
   cat > "$tmp_visual/regions.spec.yaml" <<'YAML'
 question: region geometry

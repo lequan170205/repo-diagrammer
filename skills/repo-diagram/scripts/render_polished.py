@@ -177,27 +177,36 @@ def main():
     analyzer = script_dir / "visual_analyze_svg.py"
     typography = script_dir / "browser_typography.py"
 
-    scales = [1.0, 1.12, 1.28, 1.48, 1.7][:max(1, args.max_passes)]
-    text_scales = [1.0, 1.06, 1.12, 1.22, 1.35][:max(1, args.max_passes)]
+    max_passes = max(1, args.max_passes)
+    spacing_scale = 1.0
+    text_scale = 1.0
+    layout_variant = 0
+    routing_variant = 0
     attempts_root = args.output.parent / (args.output.stem + ".repair-attempts")
 
     with tempfile.TemporaryDirectory(prefix="repo-diagrammer-repair-") as tmp:
         tmpdir = Path(tmp)
         last_findings = []
-        best = None
-        best_blocking = 10**9
 
         typography_status = "unverified"
-        for idx, scale in enumerate(scales, start=1):
-            text_scale = text_scales[min(idx-1, len(text_scales)-1)]
+        crossing_codes = {"EDGE_EDGE_CROSSING", "EDGE_EDGE_OVERLAP", "CROSSING_BUDGET"}
+        spacing_codes = {
+            "NODE_OVERLAP", "EDGE_NODE_CROSSING", "LABEL_NODE_COLLISION",
+            "LABEL_LABEL_COLLISION", "LABEL_EDGE_COLLISION", "REGION_HEADER_COLLISION",
+        }
+        reroute_codes = crossing_codes | {"PORT_CONGESTION", "EDGE_NODE_CROSSING",
+                                           "LABEL_EDGE_COLLISION"}
+        for idx in range(1, max_passes + 1):
             svg = tmpdir / f"pass-{idx}.svg"
             report = tmpdir / f"pass-{idx}.json"
             typography_report = tmpdir / f"pass-{idx}.typography.json"
 
             rendered = run([
                 sys.executable, str(renderer), str(args.spec), str(svg),
-                "--spacing-scale", str(scale),
+                "--spacing-scale", str(spacing_scale),
                 "--text-width-scale", str(text_scale),
+                "--layout-variant", str(layout_variant),
+                "--routing-variant", str(routing_variant),
             ])
             if rendered.returncode != 0:
                 print(rendered.stdout, end="")
@@ -214,13 +223,10 @@ def main():
             codes = {f.get("code") for f in blocking}
             last_findings = findings
 
-            if len(blocking) < best_blocking:
-                best_blocking = len(blocking)
-                best = svg
-
             print(
-                f"AUTO-REPAIR pass {idx}/{len(scales)}: spacing={scale:.2f}, "
-                f"text-scale={text_scale:.2f}, "
+                f"AUTO-REPAIR pass {idx}/{max_passes}: spacing={spacing_scale:.2f}, "
+                f"text-scale={text_scale:.2f}, layout={layout_variant}, "
+                f"routing={routing_variant}, "
                 f"blocking={len(blocking)}, crossings={data.get('crossings', '?')}"
             )
             for finding in blocking:
@@ -254,6 +260,8 @@ def main():
                             f"{finding.get('message')}"
                         )
                     last_findings = typography_findings
+                    text_scale = min(1.5, text_scale + 0.08)
+                    spacing_scale = min(1.8, spacing_scale + 0.03)
                     continue
 
                 if typography_checked.returncode == 2:
@@ -291,7 +299,7 @@ def main():
             if codes & NON_REPAIRABLE:
                 print(
                     "AUTO-REPAIR STOP: blocking defect requires model/grouping correction, "
-                    "not more spacing.",
+                    "not presentation search.",
                     file=sys.stderr,
                 )
                 break
@@ -303,21 +311,37 @@ def main():
                 )
                 break
 
+            # Defect-directed search: crossings need a new ordering/routing attempt;
+            # collisions usually benefit from more space; port/edge defects also reroute.
+            if codes & crossing_codes:
+                layout_variant = (layout_variant + 1) % 4
+                routing_variant = (routing_variant + 1) % 4
+                spacing_scale = min(1.8, spacing_scale + 0.06)
+            else:
+                if codes & reroute_codes:
+                    routing_variant = (routing_variant + 1) % 4
+                if codes & spacing_codes:
+                    spacing_scale = min(1.8, spacing_scale + 0.14)
+                else:
+                    spacing_scale = min(1.8, spacing_scale + 0.08)
+
         if args.keep_attempts:
             attempts_root.mkdir(parents=True, exist_ok=True)
             for candidate in tmpdir.iterdir():
                 shutil.copyfile(candidate, attempts_root / candidate.name)
 
+        remaining_blocking = [
+            f for f in last_findings if f.get("severity") == "blocking"
+        ]
         print(
-            f"AUTO-REPAIR FAILED: best pass still has {best_blocking} blocking defect(s).",
+            f"AUTO-REPAIR FAILED: final pass has {len(remaining_blocking)} blocking defect(s).",
             file=sys.stderr,
         )
-        for finding in last_findings:
-            if finding.get("severity") == "blocking":
-                print(
-                    f"  {finding.get('code')}: {finding.get('message')}",
-                    file=sys.stderr,
-                )
+        for finding in remaining_blocking:
+            print(
+                f"  {finding.get('code')}: {finding.get('message')}",
+                file=sys.stderr,
+            )
         return 1
 
 

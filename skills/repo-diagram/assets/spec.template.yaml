@@ -112,6 +112,7 @@ presentation:
 
 layout:
   direction: ""
+  # Deterministic ordering hint; optimizer may improve it to reduce crossings.
   declaration_order: []
   # Optional geometry-owned rows for polished static architecture.
   # Example: { id: runtime, label: "Runtime services", nodes: [api, call] }
