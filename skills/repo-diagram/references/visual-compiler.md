@@ -36,6 +36,7 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - distributed edge ports for high-degree nodes instead of one congested center port;
 - primary-flow-aware layout, routing and emphasis across every contiguous run in `view.primary_paths` (with `view.primary_path` kept for backward compatibility);
 - adaptive node height with glyph-aware width estimation and wrapped responsibility copy;
+- accessibility gate for SVG accessible names, WCAG-style text/edge contrast, and non-colour sync/async/context encodings;
 - optional real-browser typography verification using SVG `getBBox()`;
 - adaptive canvas sizing to reduce dead whitespace on small views;
 - semantic legends inferred from the encodings actually present: primary flow, sync/async relations, visible node roles, and split-view context nodes, with automatic wrapping;
@@ -95,6 +96,16 @@ boundaries.
 The loop stops immediately for defects such as unrelated-node region capture or
 ambiguous region overlap because those require model/grouping correction rather than
 more whitespace.
+
+## Accessibility and non-colour semantics
+
+Native polished SVGs expose a root accessible name/description plus accessible names
+for nodes and edges. `visual_accessibility.py` blocks low text/edge contrast and
+semantic encodings that rely on colour alone. In particular, async relations require
+a dash pattern and context nodes require a dashed border in addition to opacity.
+
+Accessibility defects are not spacing-repairable. `render_polished.py` stops rather
+than wasting geometry passes when this gate fails.
 
 ## Browser-measured typography
 
@@ -173,8 +184,9 @@ For a polished high-level architecture diagram, delivery requires all three:
 
 1. evidence spec passes;
 2. geometry analyzer has no Blocking finding;
-3. browser typography has no Blocking finding when a browser is available/required;
-4. the final rendered image is inspected at 100% for typography, hierarchy and
+3. accessibility/contrast gate has no Blocking finding;
+4. browser typography has no Blocking finding when a browser is available/required;
+5. the final rendered image is inspected at 100% for typography, hierarchy and
    subjective balance that geometry checks cannot fully measure.
 
 Machine checks and automatic repair reduce visual mistakes; they do not replace human/agent visual review.
