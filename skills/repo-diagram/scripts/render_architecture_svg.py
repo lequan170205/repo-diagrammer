@@ -185,7 +185,7 @@ def main():
         row_widths.append(sum(w for w, _ in dims)+node_gap*max(0, len(dims)-1))
         row_heights.append(max([h for _, h in dims] or [88]))
 
-    canvas_w = max(980, max(row_widths, default=0)+margin*2)
+    canvas_w = max(760, max(row_widths, default=0)+margin*2)
     y = header
     boxes = {}
     row_index = {}
@@ -202,7 +202,7 @@ def main():
         y += row_h+row_gap
 
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
-    canvas_h = max(620, y-row_gap+margin+legend_h)
+    canvas_h = max(420, y-row_gap+margin+legend_h)
     title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
     subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
@@ -239,7 +239,9 @@ def main():
         bx, by, bw, bh = rr
         bid = str(boundary.get("id") or "")
         name = str(boundary.get("name") or bid)
-        out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}"><rect x="{bx:.1f}" y="{by:.1f}" '
+        members = ",".join(str(x) for x in (boundary.get("contains") or []))
+        out.append(f'<g class="boundary" data-boundary-id="{esc(bid)}" data-region-kind="boundary" '
+                   f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
                    'stroke-width="1.4" stroke-dasharray="8 6"/>'
                    f'<text x="{bx+12:.1f}" y="{by+16:.1f}" font-family="Inter,Arial,sans-serif" '
@@ -255,7 +257,9 @@ def main():
         gx, gy, gw, gh = rr
         gid = str(group.get("id") or "")
         name = str(group.get("label") or group.get("name") or gid)
-        out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
+        members = ",".join(str(x) for x in (group.get("contains") or []))
+        out.append(f'<g class="presentation-group" data-group-id="{esc(gid)}" data-region-kind="presentation" '
+                   f'data-members="{esc(members)}"><rect x="{gx:.1f}" y="{gy:.1f}" '
                    f'width="{gw:.1f}" height="{gh:.1f}" rx="14" fill="#F8FAFC" fill-opacity="0.55" '
                    'stroke="#CBD5E1" stroke-width="1"/>'
                    f'<text x="{gx+12:.1f}" y="{gy+15:.1f}" font-family="Inter,Arial,sans-serif" '
@@ -345,7 +349,7 @@ def main():
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
         lines = node_lines(node, w)
-        out.append(f'<g class="node" data-node-id="{esc(nid)}"><rect x="{x:.1f}" y="{yy:.1f}" '
+        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-row-index="{row_index[nid]}"><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
