@@ -1,0 +1,30 @@
+question: "Invalid layout reference"
+type: c4-container
+audience: architecture-review
+scope: smoke
+commit: test
+conformance:
+  mode: practical
+  targets: []
+  claim: documented-subset
+nodes:
+  - id: api
+    label: API
+    kind: container
+    evidence: ["test:1"]
+edges: []
+interaction_fragments: []
+boundaries: []
+view:
+  profile: architecture
+  renderer: native-svg
+  fallback_renderer: mermaid
+  options: {}
+presentation:
+  title: "Invalid"
+  groups: []
+layout:
+  sidecars:
+    right: [missing-system]
+  crossing_target: 0
+gaps: []
