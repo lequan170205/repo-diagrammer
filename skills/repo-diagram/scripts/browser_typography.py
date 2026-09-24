@@ -135,12 +135,18 @@ JS = r"""
       measured.edgeLabels += 1;
       const rb = box(rect);
       const tb = box(text);
+      const fontSize = parseFloat(getComputedStyle(text).fontSize || "0");
       if (!contains(rb, tb, 3)) {
         add("EDGE_LABEL_TEXT_OVERFLOW", "blocking",
             "edge label " + id + " text extends outside its label box", [id]);
       }
+      if (fontSize > 0 && fontSize < 9) {
+        add("EDGE_LABEL_TEXT_TOO_SMALL", "blocking",
+            "edge label " + id + " renders at " + fontSize.toFixed(1) + "px", [id]);
+      }
     }
 
+    const regionHeaderBoxes = [];
     for (const group of svg.querySelectorAll("[data-region-kind]")) {
       const id = group.getAttribute("data-boundary-id") ||
                  group.getAttribute("data-group-id") || "region";
@@ -150,12 +156,76 @@ JS = r"""
       measured.regions += 1;
       const rb = box(rect);
       const tb = box(text);
+      const fontSize = parseFloat(getComputedStyle(text).fontSize || "0");
       const header = {x: rb.x, y: rb.y, width: rb.width,
                       height: Math.min(24, rb.height),
                       right: rb.right, bottom: rb.y + Math.min(24, rb.height)};
       if (!contains(header, tb, 3)) {
         add("REGION_TEXT_OVERFLOW", "blocking",
             "region " + id + " header text does not fit", [id]);
+      }
+      if (fontSize > 0 && fontSize < 8.5) {
+        add("REGION_TEXT_TOO_SMALL", "blocking",
+            "region " + id + " header renders at " + fontSize.toFixed(1) + "px", [id]);
+      }
+      regionHeaderBoxes.push({id, box: tb});
+    }
+    for (let i = 0; i < regionHeaderBoxes.length; i++) {
+      for (let j = i + 1; j < regionHeaderBoxes.length; j++) {
+        if (intersects(regionHeaderBoxes[i].box, regionHeaderBoxes[j].box, 0.5)) {
+          add("REGION_HEADER_TEXT_COLLISION", "blocking",
+              "region headers overlap: " + regionHeaderBoxes[i].id + " / " +
+              regionHeaderBoxes[j].id,
+              [regionHeaderBoxes[i].id, regionHeaderBoxes[j].id]);
+        }
+      }
+    }
+
+    const roleMinimums = {
+      "title": 20,
+      "subtitle": 10.5,
+      "row-heading": 9,
+      "legend": 9,
+    };
+    const hierarchyByRole = {};
+    for (const text of svg.querySelectorAll("[data-text-role]")) {
+      const role = text.getAttribute("data-text-role") || "";
+      const minSize = roleMinimums[role];
+      if (minSize) {
+        const fontSize = parseFloat(getComputedStyle(text).fontSize || "0");
+        if (fontSize > 0 && fontSize < minSize) {
+          add(role.toUpperCase().replaceAll("-", "_") + "_TEXT_TOO_SMALL",
+              "blocking",
+              role + " text renders at " + fontSize.toFixed(1) + "px", [role]);
+        }
+      }
+      if (["title", "subtitle", "row-heading", "legend"].includes(role)) {
+        if (!hierarchyByRole[role]) hierarchyByRole[role] = [];
+        hierarchyByRole[role].push(box(text));
+      }
+    }
+
+    const titleBoxes = hierarchyByRole["title"] || [];
+    const subtitleBoxes = hierarchyByRole["subtitle"] || [];
+    for (const a of titleBoxes) {
+      for (const b of subtitleBoxes) {
+        if (intersects(a, b, 0.5)) {
+          add("TITLE_SUBTITLE_COLLISION", "blocking",
+              "title and subtitle text overlap", ["title", "subtitle"]);
+        }
+      }
+    }
+    for (const [role, code] of [
+      ["row-heading", "ROW_HEADING_COLLISION"],
+      ["legend", "LEGEND_TEXT_COLLISION"],
+    ]) {
+      const boxes = hierarchyByRole[role] || [];
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          if (intersects(boxes[i], boxes[j], 0.5)) {
+            add(code, "blocking", role + " text elements overlap", [role]);
+          }
+        }
       }
     }
 
