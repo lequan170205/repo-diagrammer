@@ -144,26 +144,71 @@ def _seed_clusters(doc):
     return clusters
 
 
-def _split_members(members, adjacency, degree, max_size):
+def _connected_components(members, adjacency):
+    """Return deterministic connected components inside one semantic seed."""
+    allowed = set(members)
+    unseen = set(members)
+    components = []
+    while unseen:
+        start = min(unseen)
+        stack = [start]
+        unseen.remove(start)
+        component = []
+        while stack:
+            nid = stack.pop()
+            component.append(nid)
+            neighbors = sorted(
+                (adjacency.get(nid, set()) & allowed) & unseen,
+                reverse=True,
+            )
+            for neighbor in neighbors:
+                unseen.remove(neighbor)
+                stack.append(neighbor)
+        components.append(sorted(component))
+    components.sort(key=lambda xs: (-len(xs), xs[0] if xs else ""))
+    return components
+
+
+def _split_connected_component(members, adjacency, degree, max_size):
     remaining = set(members)
     chunks = []
+    member_set = set(members)
     while remaining:
         seed = max(remaining, key=lambda x: (degree.get(x, 0), x))
         chunk = [seed]
         remaining.remove(seed)
+        frontier = set(adjacency.get(seed, set())) & remaining
         while remaining and len(chunk) < max_size:
+            candidates = frontier or {
+                nid for nid in remaining
+                if any(x in adjacency.get(nid, set()) for x in chunk)
+            }
+            if not candidates:
+                break
+
             def affinity(nid):
                 links = sum(1 for x in chunk if x in adjacency.get(nid, set()))
-                chunk_neighbor_degree = sum(
-                    1 for x in adjacency.get(nid, set()) if x in set(members)
+                component_degree = sum(
+                    1 for x in adjacency.get(nid, set()) if x in member_set
                 )
-                return (links, chunk_neighbor_degree, degree.get(nid, 0), nid)
-            candidate = max(remaining, key=affinity)
-            # Prefer connected growth. If none connect, deterministic fill is still better
-            # than leaving many singleton fragments from the same semantic seed.
+                return (links, component_degree, degree.get(nid, 0), nid)
+
+            candidate = max(candidates, key=affinity)
             chunk.append(candidate)
             remaining.remove(candidate)
-        chunks.append(chunk)
+            frontier.discard(candidate)
+            frontier.update(adjacency.get(candidate, set()) & remaining)
+        chunks.append(sorted(chunk))
+    return chunks
+
+
+def _split_members(members, adjacency, degree, max_size):
+    """Split a seed without mixing disconnected graph components."""
+    chunks = []
+    for component in _connected_components(members, adjacency):
+        chunks.extend(
+            _split_connected_component(component, adjacency, degree, max_size)
+        )
     return chunks
 
 
@@ -206,12 +251,17 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
                     j,
                 ))
             if candidates:
-                _, _, j = max(candidates)
-                if j == i:
+                cross_edges, _, j = max(candidates)
+                if cross_edges <= 0 or j == i:
                     continue
                 target = expanded[j]
                 target["members"].extend(cluster["members"])
                 target["members"] = sorted(set(target["members"]))
+                target["source"] = (
+                    target["source"]
+                    if target["source"] == cluster["source"]
+                    else "graph-connected-merge"
+                )
                 expanded.pop(i)
                 changed = True
                 break
@@ -228,6 +278,23 @@ def build_clusters(doc, max_detail_nodes=DEFAULT_DETAIL_NODES):
     )
     for idx, cluster in enumerate(expanded, start=1):
         cluster["id"] = f"view-{idx:02d}-{slugify(cluster['label'])}"
+        members = set(cluster["members"])
+        internal_edges = sum(
+            1 for edge in edges
+            if str(edge["from"]) in members and str(edge["to"]) in members
+        )
+        boundary_edges = sum(
+            1 for edge in edges
+            if (str(edge["from"]) in members) ^ (str(edge["to"]) in members)
+        )
+        components = _connected_components(cluster["members"], adjacency)
+        denominator = internal_edges + boundary_edges
+        cluster["quality"] = {
+            "connected_components": len(components),
+            "internal_edges": internal_edges,
+            "boundary_edges": boundary_edges,
+            "cohesion": round(internal_edges / denominator, 4) if denominator else 1.0,
+        }
     return expanded
 
 
