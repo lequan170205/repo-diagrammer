@@ -96,6 +96,11 @@ def main():
         g for g in ((source.get("presentation") or {}).get("groups") or [])
         if isinstance(g, dict)
     ]
+    source_groups_by_seed = {}
+    for group in source_groups:
+        label = group.get("label") or group.get("name") or group.get("id") or "Group"
+        group_id = str(group.get("id") or label)
+        source_groups_by_seed[f"group:{group_id}"] = group
     source_primary = [str(x) for x in ((source.get("view") or {}).get("primary_path") or [])]
     errors = []
 
@@ -304,8 +309,60 @@ def main():
                     f"{vid}: detail core is disconnected "
                     f"({expected_quality['connected_components']} components)"
                 )
-            if not str(view.get("cluster_source") or "").strip():
+            cluster_source = str(view.get("cluster_source") or "").strip()
+            seed_key = str(view.get("cluster_seed_key") or "").strip()
+            if not cluster_source:
                 errors.append(f"{vid}: missing cluster_source provenance")
+            if not seed_key:
+                errors.append(f"{vid}: missing cluster_seed_key provenance")
+            elif cluster_source == "boundary":
+                if not seed_key.startswith("boundary:"):
+                    errors.append(f"{vid}: boundary cluster has invalid seed key {seed_key!r}")
+                else:
+                    boundary_id = seed_key.split(":", 1)[1]
+                    boundary = source_boundaries.get(boundary_id)
+                    allowed = {
+                        str(x) for x in ((boundary or {}).get("contains") or [])
+                    }
+                    if boundary is None:
+                        errors.append(f"{vid}: unknown source boundary provenance {seed_key!r}")
+                    elif not core_nodes <= allowed:
+                        errors.append(
+                            f"{vid}: boundary-derived core escapes {seed_key!r}; "
+                            f"core={sorted(core_nodes)}, allowed={sorted(allowed)}"
+                        )
+            elif cluster_source == "group":
+                group = source_groups_by_seed.get(seed_key)
+                allowed = {str(x) for x in ((group or {}).get("contains") or [])}
+                if group is None:
+                    errors.append(f"{vid}: unknown source group provenance {seed_key!r}")
+                elif not core_nodes <= allowed:
+                    errors.append(
+                        f"{vid}: group-derived core escapes {seed_key!r}; "
+                        f"core={sorted(core_nodes)}, allowed={sorted(allowed)}"
+                    )
+            elif cluster_source == "semantic-role":
+                if not seed_key.startswith("role:"):
+                    errors.append(f"{vid}: semantic-role cluster has invalid seed key {seed_key!r}")
+                else:
+                    expected_role = seed_key.split(":", 1)[1]
+                    mismatched = []
+                    for nid in core_nodes:
+                        node = source_nodes.get(nid) or {}
+                        actual_role = str(
+                            node.get("semantic_role") or node.get("kind") or "domain"
+                        )
+                        if actual_role != expected_role:
+                            mismatched.append(nid)
+                    if mismatched:
+                        errors.append(
+                            f"{vid}: semantic-role core escapes {seed_key!r}: "
+                            f"{sorted(mismatched)}"
+                        )
+            else:
+                errors.append(
+                    f"{vid}: unsupported cluster_source provenance {cluster_source!r}"
+                )
 
             declared_context = {
                 str(x) for x in ((doc.get("view") or {}).get("context_nodes") or [])
