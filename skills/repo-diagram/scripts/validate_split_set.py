@@ -62,6 +62,24 @@ def main():
     if manifest.get("invented_architecture_elements") is not False:
         errors.append("manifest.invented_architecture_elements must be false")
 
+    budgets = manifest.get("budgets") or {}
+    required_budget_fields = {
+        "overview_nodes",
+        "detail_core_nodes",
+        "detail_context_nodes",
+        "detail_total_nodes",
+        "integration_nodes",
+    }
+    if not isinstance(budgets, dict):
+        errors.append("manifest.budgets must be a mapping")
+        budgets = {}
+    else:
+        missing_budget_fields = required_budget_fields - set(budgets)
+        if missing_budget_fields:
+            errors.append(
+                f"manifest.budgets missing field(s): {sorted(missing_budget_fields)}"
+            )
+
     seen_view_ids = set()
     seen_spec_paths = set()
     covered_node_ids = set()
@@ -153,6 +171,40 @@ def main():
             errors.append(f"{vid}: expected split_kind='integration', got {split_kind!r}")
         if vid != "overview" and not vid.startswith("integration-") and split_kind != "detail":
             errors.append(f"{vid}: expected split_kind='detail', got {split_kind!r}")
+
+        node_count = len(nodes)
+        if vid == "overview":
+            limit = budgets.get("overview_nodes")
+            if isinstance(limit, int) and node_count > limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds overview budget {limit}"
+                )
+        elif vid.startswith("integration-"):
+            limit = budgets.get("integration_nodes")
+            if isinstance(limit, int) and node_count > limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds integration budget {limit}"
+                )
+        else:
+            total_limit = budgets.get("detail_total_nodes")
+            core_limit = budgets.get("detail_core_nodes")
+            context_limit = budgets.get("detail_context_nodes")
+            if isinstance(total_limit, int) and node_count > total_limit:
+                errors.append(
+                    f"{vid}: {node_count} nodes exceeds detail total budget {total_limit}"
+                )
+            core_nodes = {str(x) for x in (view.get("core_nodes") or [])}
+            if isinstance(core_limit, int) and len(core_nodes) > core_limit:
+                errors.append(
+                    f"{vid}: {len(core_nodes)} core nodes exceeds detail core budget {core_limit}"
+                )
+            declared_context = {
+                str(x) for x in ((doc.get("view") or {}).get("context_nodes") or [])
+            }
+            if isinstance(context_limit, int) and len(declared_context) > context_limit:
+                errors.append(
+                    f"{vid}: {len(declared_context)} context nodes exceeds detail context budget {context_limit}"
+                )
 
         included = set(nodes)
         context = {str(x) for x in (view_meta.get("context_nodes") or [])}
