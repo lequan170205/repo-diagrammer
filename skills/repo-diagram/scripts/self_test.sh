@@ -32,7 +32,7 @@ for f in "${required[@]}"; do
 done
 
 for f in "$core"/scripts/*.sh; do bash -n "$f"; done
-python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/layout_optimizer.py" "$core/scripts/text_metrics.py" "$core/scripts/browser_typography.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
+python3 -m py_compile "$core/scripts/geometry_router.py" "$core/scripts/layout_optimizer.py" "$core/scripts/text_metrics.py" "$core/scripts/browser_typography.py" "$core/scripts/density_planner.py" "$core/scripts/validate_split_set.py" "$core/scripts/visual_lint_svg.py" "$core/scripts/visual_analyze_svg.py" "$core/scripts/visual_accessibility.py" "$core/scripts/render_architecture_svg.py" "$core/scripts/render_polished.py" "$core/scripts/validate_spec.py"
 
 PYTHONPATH="$core/scripts" python3 - <<'PY'
 from layout_optimizer import crossing_score, optimize_rows
@@ -128,6 +128,17 @@ if python3 -c 'import yaml' >/dev/null 2>&1; then
       exit 1
     fi
   }
+
+  accessibility_expect_pass() {
+    local svg="$1"
+    local output
+    shift
+    if ! output="$(python3 "$core/scripts/visual_accessibility.py" "$svg" --strict "$@" 2>&1)"; then
+      echo "expected accessibility pass failed: $svg" >&2
+      echo "$output" >&2
+      exit 1
+    fi
+  }
   cat > "$tmp_visual/architecture.spec.yaml" <<'YAML'
 question: smoke
 type: c4-container
@@ -153,6 +164,10 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/architecture.spec.yaml" "$tmp_visual/architecture.svg" >/dev/null
   visual_expect_pass "$tmp_visual/architecture.svg" --max-crossings 0
+  accessibility_expect_pass "$tmp_visual/architecture.svg" --json "$tmp_visual/architecture.accessibility.json"
+  grep -q 'aria-labelledby="diagram-svg-title diagram-svg-desc"' "$tmp_visual/architecture.svg"
+  grep -q 'data-node-role="clients"' "$tmp_visual/architecture.svg"
+  grep -q 'data-sync="false"' "$tmp_visual/architecture.svg"
   grep -q 'data-legend-key="primary-flow"' "$tmp_visual/architecture.svg"
   grep -q 'data-legend-key="sync"' "$tmp_visual/architecture.svg"
   grep -q 'data-legend-key="async-event"' "$tmp_visual/architecture.svg"
@@ -187,6 +202,7 @@ layout:
 YAML
   python3 "$core/scripts/render_architecture_svg.py" "$tmp_visual/same-row.spec.yaml" "$tmp_visual/same-row.svg" --layout-variant 2 --routing-variant 3 >/dev/null
   visual_expect_pass "$tmp_visual/same-row.svg" --max-crossings 0
+  accessibility_expect_pass "$tmp_visual/same-row.svg"
   grep -q 'data-primary="true"' "$tmp_visual/same-row.svg"
   grep -q 'data-layout-variant="2"' "$tmp_visual/same-row.svg"
   grep -q 'data-routing-variant="3"' "$tmp_visual/same-row.svg"
@@ -320,6 +336,48 @@ YAML
   grep -q 'data-region-kind="presentation"' "$tmp_visual/regions.svg"
   grep -q 'data-text-role="region-header"' "$tmp_visual/regions.svg"
   python3 "$core/scripts/browser_typography.py" "$tmp_visual/regions.svg" --strict --required >"$tmp_visual/regions.typography.out"
+
+  cat > "$tmp_visual/bad-contrast.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d" viewBox="0 0 300 160">
+  <title id="t">Bad contrast</title>
+  <desc id="d">Accessibility regression fixture</desc>
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  <g class="node" data-node-id="a" data-node-role="domain" role="group" aria-label="Node A">
+    <rect x="40" y="40" width="160" height="70" fill="#FFFFFF" stroke="#475569"/>
+    <text data-text-role="node-title" x="55" y="75" font-size="12" fill="#F8FAFC">Unreadable</text>
+  </g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_accessibility.py" "$tmp_visual/bad-contrast.svg" --strict >"$tmp_visual/bad-contrast.out" 2>&1; then
+    echo "expected low-contrast SVG to fail accessibility gate" >&2
+    exit 1
+  fi
+  grep -q 'LOW_TEXT_CONTRAST' "$tmp_visual/bad-contrast.out"
+
+  cat > "$tmp_visual/color-only-edges.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d" viewBox="0 0 360 220">
+  <title id="t">Color only edge semantics</title>
+  <desc id="d">Accessibility regression fixture</desc>
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  <g class="node" data-node-id="a" data-node-role="domain" role="group" aria-label="Node A">
+    <rect x="20" y="20" width="80" height="40" fill="#FFFFFF" stroke="#475569"/>
+  </g>
+  <g class="node" data-node-id="b" data-node-role="domain" role="group" aria-label="Node B">
+    <rect x="240" y="20" width="80" height="40" fill="#FFFFFF" stroke="#475569"/>
+  </g>
+  <g class="edge" data-edge-id="sync" data-source-id="a" data-target-id="b" data-sync="true" role="img" aria-label="A to B sync">
+    <path d="M 100,35 L 240,35" fill="none" stroke="#1E293B" stroke-width="2"/>
+  </g>
+  <g class="edge" data-edge-id="async" data-source-id="a" data-target-id="b" data-sync="false" role="img" aria-label="A to B async">
+    <path d="M 100,50 L 240,50" fill="none" stroke="#475569" stroke-width="2"/>
+  </g>
+</svg>
+SVG
+  if python3 "$core/scripts/visual_accessibility.py" "$tmp_visual/color-only-edges.svg" --strict >"$tmp_visual/color-only-edges.out" 2>&1; then
+    echo "expected color-only sync/async semantics to fail accessibility gate" >&2
+    exit 1
+  fi
+  grep -q 'EDGE_SEMANTICS_COLOR_ONLY' "$tmp_visual/color-only-edges.out"
 
   cat > "$tmp_visual/bad-hierarchy.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">

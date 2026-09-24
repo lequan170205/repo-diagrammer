@@ -149,15 +149,19 @@ python3 "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/skills/repo-diagram/scripts/render_
 It first applies the density budget. Dense architecture specs are automatically
 expanded into an overview plus bounded detail views under `<output-stem>.set/`, all
 using stable source IDs and no invented architecture elements. Each generated view is
-then rendered through the strict geometry gate and presentation-only repair loop.
+then rendered through the strict geometry gate, accessibility/contrast gate, and
+presentation-only repair loop.
+
+Accessibility failures such as low contrast, missing accessible names, or colour-only
+sync/async/context semantics are Blocking and are not treated as spacing-repairable.
 
 When Chrome/Chromium is available, the same loop measures actual SVG text bounds in a
 headless browser and retries with more conservative text sizing if needed. If browser
 measurement is unavailable, disclose that typography used the estimator fallback.
 
 It stops instead of mutating the model when a defect requires grouping/model
-correction. Never mark visual review passed while a Blocking geometry or browser-text
-defect remains.
+correction. Never mark visual review passed while a Blocking geometry, accessibility,
+or browser-text defect remains.
 
 For Markdown Mermaid blocks use `validate_mermaid.sh`.
 

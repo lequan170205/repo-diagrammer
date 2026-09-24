@@ -191,6 +191,7 @@ def main():
 
     renderer = script_dir / "render_architecture_svg.py"
     analyzer = script_dir / "visual_analyze_svg.py"
+    accessibility = script_dir / "visual_accessibility.py"
     typography = script_dir / "browser_typography.py"
 
     max_passes = max(1, args.max_passes)
@@ -263,6 +264,25 @@ def main():
                 print(f"  BLOCKING {finding.get('code')}: {finding.get('message')}")
 
             if checked.returncode == 0:
+                accessibility_report = tmpdir / f"pass-{idx}.accessibility.json"
+                accessibility_checked = run([
+                    sys.executable,
+                    str(accessibility),
+                    str(svg),
+                    "--strict",
+                    "--json",
+                    str(accessibility_report),
+                ])
+                if accessibility_checked.returncode != 0:
+                    print(accessibility_checked.stdout, end="")
+                    print(accessibility_checked.stderr, end="", file=sys.stderr)
+                    print(
+                        "AUTO-REPAIR STOP: accessibility/contrast defect requires "
+                        "visual encoding correction, not geometry search.",
+                        file=sys.stderr,
+                    )
+                    return accessibility_checked.returncode
+
                 typography_cmd = [
                     sys.executable, str(typography), str(svg), "--strict",
                     "--json", str(typography_report),
@@ -329,7 +349,7 @@ def main():
                 shutil.copyfile(svg, args.output)
                 print(
                     f"AUTO-REPAIR PASS: {args.output} after {idx} pass(es); "
-                    f"typography={typography_status}"
+                    f"accessibility=passed; typography={typography_status}"
                 )
                 if args.keep_attempts:
                     attempts_root.mkdir(parents=True, exist_ok=True)
