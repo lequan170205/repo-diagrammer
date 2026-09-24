@@ -14,7 +14,9 @@ description: Generate a coherent repository diagram set from one shared evidence
 5. Load each view's own quality profile and renderer strategy.
 6. Render + visually review + source-review every view.
 7. For generated split views, preserve stable IDs, record context/suppressed nodes,
-   and validate every selected node/relation against the shared model.
+   and validate every selected node/relation against the shared model. The complete
+   generated set must cover every source node and relation at least once; use bounded
+   integration views for cross-cluster relations that do not fit detail context.
 8. Cross-view consistency gate: names, kinds, relation direction/semantics, real
    boundaries, palette/legend meaning.
 9. Deliver an ordered `docs/diagrams/README.md`.
