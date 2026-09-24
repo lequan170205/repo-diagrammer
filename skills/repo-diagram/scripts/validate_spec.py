@@ -63,6 +63,7 @@ fragments = mapping_list("interaction_fragments")
 gaps = doc.get("gaps") or []
 view = as_map(doc.get("view"), "view")
 presentation = as_map(doc.get("presentation"), "presentation")
+layout = as_map(doc.get("layout"), "layout")
 conformance = as_map(doc.get("conformance"), "conformance")
 architecture_description = as_map(doc.get("architecture_description"), "architecture_description")
 
@@ -85,6 +86,73 @@ for i, node in enumerate(nodes):
         errors.append(f"{prefix}.label: required")
     if not nonempty(node.get("evidence")):
         errors.append(f"{prefix}.evidence: No evidence, no element")
+
+# Renderer-neutral layout references still need structural validation. Renderer-specific
+# capabilities (for example native polished TB-only direction) are checked by renderer.
+declaration_order = layout.get("declaration_order") or []
+if not isinstance(declaration_order, list):
+    errors.append("layout.declaration_order: must be a list")
+    declaration_order = []
+else:
+    seen_decl = set()
+    for value in declaration_order:
+        nid = str(value)
+        if nid not in node_ids:
+            errors.append(f"layout.declaration_order: unknown node {nid!r}")
+        if nid in seen_decl:
+            errors.append(f"layout.declaration_order: duplicate node {nid!r}")
+        seen_decl.add(nid)
+
+sidecars = layout.get("sidecars") or {}
+if not isinstance(sidecars, dict):
+    errors.append("layout.sidecars: must be a mapping")
+    sidecars = {}
+assigned_sidecars = {}
+for lane in ("left", "right", "bottom"):
+    values = sidecars.get(lane) or []
+    if not isinstance(values, list):
+        errors.append(f"layout.sidecars.{lane}: must be a list")
+        continue
+    for value in values:
+        nid = str(value)
+        if nid not in node_ids:
+            errors.append(f"layout.sidecars.{lane}: unknown node {nid!r}")
+        if nid in assigned_sidecars:
+            errors.append(
+                f"layout.sidecars: node {nid!r} assigned to both "
+                f"{assigned_sidecars[nid]} and {lane}"
+            )
+        assigned_sidecars[nid] = lane
+
+rows_value = layout.get("rows") or []
+if not isinstance(rows_value, list):
+    errors.append("layout.rows: must be a list")
+    rows_value = []
+for i, row in enumerate(rows_value):
+    if isinstance(row, dict):
+        members = row.get("nodes") if "nodes" in row else row.get("contains")
+        members = members or []
+    elif isinstance(row, list):
+        members = row
+    else:
+        errors.append(f"layout.rows[{i}]: must be a mapping or list")
+        continue
+    if not isinstance(members, list):
+        errors.append(f"layout.rows[{i}]: nodes/contains must be a list")
+        continue
+    for value in members:
+        nid = str(value)
+        if nid not in node_ids:
+            errors.append(f"layout.rows[{i}]: unknown node {nid!r}")
+        if nid in assigned_sidecars:
+            errors.append(
+                f"layout.rows[{i}]: node {nid!r} is also assigned to "
+                f"sidecar lane {assigned_sidecars[nid]}"
+            )
+
+direction_value = layout.get("direction")
+if direction_value is not None and not isinstance(direction_value, str):
+    errors.append("layout.direction: must be a string")
 
 edge_ids: set[str] = set()
 partial = []
