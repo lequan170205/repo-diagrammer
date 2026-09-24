@@ -131,12 +131,27 @@ def main():
         print("ARCH-RENDERER: no nodes", file=sys.stderr)
         return 1
 
-    rows = barycentric_order(parse_rows(doc, nodes), edges)
     nmap = {n["id"]: n for n in nodes}
+    layout = doc.get("layout") or {}
+    raw_sidecars = layout.get("sidecars") or {}
+    sidecars = {
+        zone: [nid for nid in (raw_sidecars.get(zone) or []) if nid in nmap]
+        for zone in ("left", "right", "bottom")
+    }
+    sidecar_ids = {nid for members in sidecars.values() for nid in members}
+    core_nodes = [n for n in nodes if n["id"] not in sidecar_ids]
+    if not core_nodes:
+        core_nodes = nodes
+        sidecars = {"left": [], "right": [], "bottom": []}
+        sidecar_ids = set()
+
+    rows = barycentric_order(parse_rows(doc, core_nodes), edges)
 
     margin = 70
     row_gap = 105
     node_gap = 34
+    sidecar_gap = 70
+    sidecar_stack_gap = 28
     header = 112
     node_h = 88
     row_widths = []
@@ -144,22 +159,92 @@ def main():
         ws = [width_for(nmap[x]) for x in row["nodes"]]
         row_widths.append(sum(ws)+node_gap*max(0, len(ws)-1))
 
-    canvas_w = max(980, max(row_widths, default=0)+margin*2)
+    def zone_width(zone):
+        return max([width_for(nmap[nid]) for nid in sidecars[zone]] or [0])
+
+    left_w, right_w = zone_width("left"), zone_width("right")
+    left_reserve = left_w+sidecar_gap if left_w else 0
+    right_reserve = right_w+sidecar_gap if right_w else 0
+    bottom_ws = [width_for(nmap[nid]) for nid in sidecars["bottom"]]
+    bottom_width = sum(bottom_ws)+node_gap*max(0, len(bottom_ws)-1)
+
+    core_width = max(row_widths, default=0)
+    canvas_w = max(
+        980,
+        core_width+margin*2+left_reserve+right_reserve,
+        bottom_width+margin*2,
+    )
+    core_left = margin+left_reserve
+    core_right = canvas_w-margin-right_reserve
+    core_span = max(core_width, core_right-core_left)
+
     y = header
     boxes = {}
     row_index = {}
+    node_zone = {}
     for ri, row in enumerate(rows):
         total = row_widths[ri]
-        x = (canvas_w-total)/2
+        x = core_left+(core_span-total)/2
         for nid in row["nodes"]:
             w = width_for(nmap[nid])
             boxes[nid] = (x, y, w, node_h)
             row_index[nid] = ri
+            node_zone[nid] = "core"
             x += w+node_gap
         y += node_h+row_gap
+    core_bottom = y-row_gap
 
+    side_stack_bottom = core_bottom
+    for zone in ("left", "right"):
+        sy0 = header
+        for nid in sidecars[zone]:
+            w = width_for(nmap[nid])
+            x = margin if zone == "left" else canvas_w-margin-w
+            boxes[nid] = (x, sy0, w, node_h)
+            node_zone[nid] = zone
+            sy0 += node_h+sidecar_stack_gap
+        side_stack_bottom = max(side_stack_bottom, sy0-sidecar_stack_gap if sidecars[zone] else core_bottom)
+
+    if sidecars["bottom"]:
+        by = max(core_bottom, side_stack_bottom)+row_gap
+        total = bottom_width
+        x = (canvas_w-total)/2
+        for nid in sidecars["bottom"]:
+            w = width_for(nmap[nid])
+            boxes[nid] = (x, by, w, node_h)
+            row_index[nid] = len(rows)
+            node_zone[nid] = "bottom"
+            x += w+node_gap
+        content_bottom = by+node_h
+    else:
+        content_bottom = max(core_bottom, side_stack_bottom)
+
+    # Sidecars align semantically with the median connected core row so edges enter
+    # horizontally whenever possible instead of making unnecessary cross-layer arcs.
+    middle_row = max(0, (len(rows)-1)//2)
+    for zone in ("left", "right"):
+        for nid in sidecars[zone]:
+            neighbor_rows = []
+            for edge in edges:
+                other = None
+                if edge.get("from") == nid:
+                    other = edge.get("to")
+                elif edge.get("to") == nid:
+                    other = edge.get("from")
+                if other in row_index and node_zone.get(other) == "core":
+                    neighbor_rows.append(row_index[other])
+            if neighbor_rows:
+                vals = sorted(neighbor_rows)
+                row_index[nid] = vals[len(vals)//2]
+                target_y = header+row_index[nid]*(node_h+row_gap)
+                x0, _, w, h = boxes[nid]
+                boxes[nid] = (x0, target_y, w, h)
+            else:
+                row_index[nid] = middle_row
+
+    content_bottom = max([y0+h for x0, y0, w, h in boxes.values()] or [content_bottom])
     legend_h = 70 if ((doc.get("presentation") or {}).get("legend") or {}).get("show") else 20
-    canvas_h = max(620, y-row_gap+margin+legend_h)
+    canvas_h = max(620, content_bottom+margin+legend_h)
     title = (doc.get("presentation") or {}).get("title") or "Architecture overview"
     subtitle = (doc.get("presentation") or {}).get("subtitle") or doc.get("scope") or ""
 
@@ -358,7 +443,8 @@ def main():
         role = node_role(node)
         fill, stroke = PALETTE.get(role, ("#F8FAFC", "#64748B"))
         lines = display_lines(node)
-        out.append(f'<g class="node" data-node-id="{esc(nid)}"><rect x="{x:.1f}" y="{yy:.1f}" '
+        zone = node_zone.get(nid, "core")
+        out.append(f'<g class="node" data-node-id="{esc(nid)}" data-layout-zone="{esc(zone)}"><rect x="{x:.1f}" y="{yy:.1f}" '
                    f'width="{w:.1f}" height="{h:.1f}" rx="12" fill="{fill}" stroke="{stroke}" '
                    f'stroke-width="1.5"/>')
         base = yy+27
