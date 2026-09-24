@@ -263,7 +263,7 @@ def main():
                    f'data-members="{esc(members)}"><rect x="{bx:.1f}" y="{by:.1f}" '
                    f'width="{bw:.1f}" height="{bh:.1f}" rx="16" fill="none" stroke="#64748B" '
                    'stroke-width="1.4" stroke-dasharray="8 6"/>'
-                   f'<text data-text-role="region-header" x="{bx+12:.1f}" y="{by+12:.1f}" font-family="Inter,Arial,sans-serif" '
+                   f'<text data-text-role="region-header" x="{bx+12:.1f}" y="{by+13:.1f}" font-family="Inter,Arial,sans-serif" '
                    f'font-size="{region_font:.1f}" font-weight="700" fill="#475569">{esc(name)}</text></g>')
 
     groups = ((doc.get("presentation") or {}).get("groups") or [])
