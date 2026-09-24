@@ -90,18 +90,19 @@ def height_for(n, width, text_width_scale=1.0):
     return max(88, 34 + 18*len(node_lines(n, width, text_width_scale)))
 
 
-def parse_rows(doc, nodes):
-    ids = {n["id"] for n in nodes}
+def parse_rows(doc, nodes, exclude_ids=None):
+    exclude_ids = {str(x) for x in (exclude_ids or [])}
+    ids = {str(n["id"]) for n in nodes if str(n["id"]) not in exclude_ids}
     rows = (doc.get("layout") or {}).get("rows") or []
     out = []
     used = set()
     for row in rows:
         if isinstance(row, dict):
-            members = [x for x in (row.get("nodes") or row.get("contains") or [])
-                       if x in ids and x not in used]
+            members = [str(x) for x in (row.get("nodes") or row.get("contains") or [])
+                       if str(x) in ids and str(x) not in used]
             label = str(row.get("label") or row.get("id") or "")
         elif isinstance(row, list):
-            members = [x for x in row if x in ids and x not in used]
+            members = [str(x) for x in row if str(x) in ids and str(x) not in used]
             label = ""
         else:
             continue
@@ -109,10 +110,10 @@ def parse_rows(doc, nodes):
             out.append({"label": label, "nodes": members})
             used.update(members)
 
-    leftovers = [n for n in nodes if n["id"] not in used]
+    leftovers = [n for n in nodes if str(n["id"]) in ids and str(n["id"]) not in used]
     by = {}
     for n in leftovers:
-        by.setdefault(node_role(n), []).append(n["id"])
+        by.setdefault(node_role(n), []).append(str(n["id"]))
     for role in ROLE_ORDER:
         if by.get(role):
             out.append({"label": role.replace("-", " ").title(), "nodes": by.pop(role)})
