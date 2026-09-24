@@ -34,7 +34,7 @@ It owns node geometry instead of delegating the entire composition to Mermaid:
 - route scoring that penalizes node hits, crossings, long shared corridors, bends and route length;
 - geometry-aware label placement that avoids nodes, labels and unrelated edges;
 - distributed edge ports for high-degree nodes instead of one congested center port;
-- primary-path-first routing and emphasis when `view.primary_path` is supplied;
+- primary-flow-aware layout, routing and emphasis across every contiguous run in `view.primary_paths` (with `view.primary_path` kept for backward compatibility);
 - adaptive node height with glyph-aware width estimation and wrapped responsibility copy;
 - optional real-browser typography verification using SVG `getBBox()`;
 - adaptive canvas sizing to reduce dead whitespace on small views;
