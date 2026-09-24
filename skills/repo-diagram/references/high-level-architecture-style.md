@@ -164,13 +164,14 @@ A polished overview should feel like a technical architecture poster:
 
 - clear title and one-line subtitle in the delivered document/export;
 - one obvious top-to-bottom story;
-- balanced left/right weight;
+- balanced left/right weight, with machine warnings for strongly asymmetric margins;
 - service groups aligned to a common grid;
 - no accidental giant boxes caused by prose;
 - no spaghetti around the broker;
 - external integrations grouped rather than scattered;
 - data and observability visually anchored at the bottom;
-- whitespace between regions, not inside labels.
+- whitespace between regions, not inside labels;
+- no accidental presentation group/boundary capture of unrelated nodes.
 
 A source-correct diagram that looks like raw auto-layout should be iterated before
 delivery.
